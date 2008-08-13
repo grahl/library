@@ -1,6 +1,6 @@
 ; $Id$
 name 		= "Library"
-description 	= "Include content types in a library. CCK, Trigger, and Views are recommended."
+description 	= "Include content types in a library. CCK and Trigger are recommended."
 dependencies[] = patron
 package 	= Library
 core 		= "6.x"

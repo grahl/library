@@ -15,7 +15,7 @@ function library_transaction_form(&$form_state, $item = NULL) {
   }
   $action_list = array();
   $aids = array();
-  if($item) { 
+  if ($item) { 
     if ($item->in_circulation == LIBRARY_REFERENCE_ONLY) {
       $action_array = variable_get('library_links_display_reference', array());
     }
@@ -90,8 +90,8 @@ function library_transaction_form(&$form_state, $item = NULL) {
     '#description' => t('If you are reserving an item, make sure to include the date and time you would like it to be ready.'),
   );
   $form['submit'] = array(
-      '#type' => 'submit',
-      '#value' => t('Save'),
+    '#type' => 'submit',
+    '#value' => t('Save'),
   );
   $form['#validate'][] = 'library_transaction_form_validate';
   $form['#submit'][] = 'library_transaction_form_submit';
@@ -119,18 +119,7 @@ function library_transaction_form_validate($form, &$form_state) {
           list($temp, $barcode, $title, $id) = $matches;
         }
         else {
-          list($temp, $full_title, $id) = $matches;
-		  $vol_pos = strpos($full_title, ' [v. ');
-		  $no_pos = strpos($full_title, ' [no. ');
-		  if ($vol_pos === false && $no_pos === false) {
-		    $title = $full_title;
-		  }
-		  else if ($vol_pos === false) {
-		    $title = substr($full_title, 0, $vol_pos);
-		  }
-		  else {
-		    $title = substr($full_title, 0, $no_pos);
-		  }
+          list($temp, $title, $id) = $matches;
         }
         $item = library_load($id);
         if (isset($item) && !empty($title) && (strcasecmp(rtrim(check_plain($title)), rtrim(check_plain($item->title))) != 0)) {
@@ -152,7 +141,7 @@ function library_transaction_form_validate($form, &$form_state) {
                 form_set_error('action_aid', t('This item is not currently available.'));
               }
               $form_state['values']['action_name'] = $action->name;
-			  $form_state['values']['status_change'] = $action->status_change;
+              $form_state['values']['status_change'] = $action->status_change;
             }
           }
         }
@@ -229,7 +218,7 @@ function library_transaction_form_submit($form, &$form_state) {
   $context['transaction'] = array('id' => $transaction_id, 'action_name' => $form_state['values']['action_name'], 'aid' => $form_state['values']['action_aid'], 'notes' => check_plain($form_state['values']['notes']), 'duedate' => $duedate, 'created' => $now);
   $context['patron'] = array('nid' => $form_state['values']['patron_id'], 'name' => $form_state['values']['patron_name_first'] .' '. $form_state['values']['patron_name_last'], 'email' => $form_state['values']['patron_email'], 'uid' => $form_state['values']['patron_uid']);
   $actions = _library_get_hook_aids('library', 'after_'. $clean);
-  if (!empty($actions)){
+  if (!empty($actions)) {
     actions_do($actions, $object, $context);
   }
   $form_state['redirect'] = 'node/'. $form_state['values']['nid'] .'/library/history';
@@ -247,7 +236,9 @@ function library_transaction_view($tid) {
     if (!empty($transaction->duedate)) {
       $list[] = t('Due Date: @due_date', array('@due_date' => format_date($transaction->duedate, 'custom', 'M j, Y')));
     }
-    $list[] = $transaction->notes;
+    if (!empty($transaction->notes)) {
+      $list[] = $transaction->notes;
+    }
     return theme('item_list', $list);
   }
   else {
@@ -287,43 +278,43 @@ function library_history($node) {
     if (!empty($transactions[0])) {
       foreach ($transactions as $value) {
         $last_item = '';
-	    foreach ($value as $transaction) {
-	      $detail_link = '';
-	      $action_link = '';
-             $cur_item = $transaction->item_id;
-             $created = format_date($transaction->created, 'small');
-             if ($duedate_enabled && $cur_item <> $last_item && !empty($transaction->duedate)) {
-               $duedate = format_date($transaction->duedate, 'small');
-             }
-             elseif ($duedate_enabled) {
-               $duedate = '';
-             }
-             if ($user_has_access) {
-               $detail_link = l('View Details', 'library-items/transaction/view/'. $transaction->tid);
+        foreach ($value as $transaction) {
+          $detail_link = '';
+          $action_link = '';
+          $cur_item = $transaction->item_id;
+          $created = format_date($transaction->created, 'small');
+          if ($duedate_enabled && $cur_item <> $last_item && !empty($transaction->duedate)) {
+            $duedate = format_date($transaction->duedate, 'small');
+          }
+          elseif ($duedate_enabled) {
+            $duedate = '';
+          }
+          if ($user_has_access) {
+            $detail_link = l('View Details', 'library-items/transaction/view/'. $transaction->tid);
 
-               if ($cur_item <> $last_item) {
-		         $item = array('id' => $transaction->item_id, 'library_status' => $transaction->library_status, 'last_patron_id' => $transaction->patron_id, 'in_circulation' => $transaction->in_circulation);
-		         $links = library_get_action_links($item);
-                 if (!empty($links)) {
-                   $action_link = ' | '. implode(" | ", $links);
-                 }
-               }
-	      }
+            if ($cur_item <> $last_item) {
+              $item = array('id' => $transaction->item_id, 'library_status' => $transaction->library_status, 'last_patron_id' => $transaction->patron_id, 'in_circulation' => $transaction->in_circulation);
+              $links = library_get_action_links($item);
+              if (!empty($links)) {
+                $action_link = ' | '. implode(" | ", $links);
+              }
+            }
+          }
 		  
-             $temp_array = array($created, $transaction->action_name, $transaction->notes);
-             if (isset($duedate)) { 
-               $temp_array[] = $duedate; 
-             }
-             if (!empty($detail_link) || !empty($action_link)) {
-               $temp_array[] = $detail_link . $action_link;
-             }
-             $rows[] = $temp_array;
-             $last_item = $cur_item;
-	    }
-         }
-         return theme('table', $header, $rows);
-       }
-       else {
+          $temp_array = array($created, $transaction->action_name, $transaction->notes);
+          if (isset($duedate)) { 
+            $temp_array[] = $duedate; 
+          }
+          if (!empty($detail_link) || !empty($action_link)) {
+            $temp_array[] = $detail_link . $action_link;
+          }
+          $rows[] = $temp_array;
+          $last_item = $cur_item;
+        }
+      }
+      return theme('table', $header, $rows);
+    }
+    else {
       if ($is_patron) {
         return "<p>This patron has not performed any actions.</p>";
       }

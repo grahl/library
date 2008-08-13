@@ -77,6 +77,9 @@ function library_perm() {
   return $permissions;
 }
 
+/* 
+ * Determine whether a user may perform any library action
+ */
 function library_action_access($aid = NULL) {
   global $user;
   $may_view_patron = FALSE;
@@ -109,11 +112,11 @@ function library_help($path, $arg) {
   
   switch ($path) {
     case 'admin/settings/library':
-      return t('<p>Below are display options for library items and catalogs. </p>');
+      return t('<p>Below are display options for library items and lists. </p>');
     case 'admin/settings/library/duedates':
       return t('<p>Due date and overdue item functionality are disabled by default. Below are options for handling how long items may be unavailable. To enable due date functionality, set a number of days greater than zero for the period an item may be made unavailable for one of the actions below. You may add further actions on the <a href="@libraryactions">Library Actions</a> page.</p>', array('@libraryactions' => url('admin/settings/library/actions')));
     case 'admin/settings/library/actions':
-      return t('<p>Two actions are included by default: Check In and Check Out.  You may rename these by clicking "edit action" or add more actions below. You must always have at least one action that makes items available and one that makes items unavailable.</p>', array());
+      return t('<p>Two actions are included by default: Check In and Check Out.  You may rename these by clicking "edit action" or add more actions below. You must always have at least one action that makes items available and one that makes items unavailable. Each library action generates a custom trigger to which additional Drupal actions may be assigned. See <a href="@link">Tiggers</a> and <a href="@link2">Actions</a></p>', array('@link' => url('admin/build/trigger/library'), '@link2' => url('admin/settings/actions')));
     case 'library-items/overdue':
       return t('<p>Below is a list of all overdue library items.  If you are a library administrator, you may <a href="@sendemail">send an email notifying all patrons with overdue items</a>.</p>', array('@sendemail' => url('library-items/overdue/email')));
   }
@@ -123,7 +126,7 @@ function library_help($path, $arg) {
  * Implementation of hook_form_alter()
  */
 function library_form_alter(&$form, $form_state, $form_id) {
-  if ($form_id == 'node_type_form' && isset($form['identity']['type'])) {
+  if ($form_id == 'node_type_form' && isset($form['identity']['type']) && $form['#node_type']->type <> 'patron') {
     $form['workflow']['library'] = array(
       '#type' => 'radios',
       '#title' => t('Library Item'),
@@ -290,13 +293,16 @@ function library_form_alter(&$form, $form_state, $form_id) {
         '#type' => 'checkbox',
         '#title' => t('Display this field in the library'),
         '#default_value' => variable_get('library_display_field_'. $form['field_name']['#value'], 0),
-	 '#return_value' => 1,
+        '#return_value' => 1,
       );
       $pos = array_search('widget', array_keys($form));
 
       $form = array_merge(array_slice($form, 0, $pos), $newform, array_slice($form, $pos));
       $form['#submit'][] = 'library_field_submit';
     }
+  }
+  else if ($form_id == 'search_block_form' && variable_get('library_search_block', 0) == 1) {
+    $form['#submit'][] = 'library_search_box_form_submit';
   }
 }
 
@@ -305,6 +311,10 @@ function library_field_submit($form_id, &$form_values) {
    variable_set('library_display_field_'. $values['field_name'], $values['library_display_field_'. $values['field_name']]);
 }
 
+function library_search_box_form_submit($form, &$form_state) {
+  $form_id = $form['form_id']['#value'];
+  $form_state['redirect'] = 'search/library/'. trim($form_state['values'][$form_id]);
+}
 
 /*
  * Gets the node object, modifies the title, and updates the node in the form_state
@@ -341,6 +351,10 @@ function library_more_items_submit($form, &$form_state) {
   }
 }
 
+
+/*
+ * Subform for an instance of a library item on node create/edit
+ */
 function _library_item_form($delta, $item = array()) {
 
   $form = array(
@@ -446,7 +460,7 @@ function library_menu() {
     'title' => 'View a Transaction',
     'page callback' => 'library_transaction_view',
     'page arguments' => array(3),
-	'access arguments' => array('administer transactions'),
+    'access arguments' => array('administer transactions'),
     'type' => MENU_CALLBACK,
     'file' => 'library.pages.inc',
   );
@@ -581,6 +595,10 @@ function library_item_js() {
   drupal_json(array('status' => TRUE, 'data' => $output));
 }
 
+/**
+ * Menu callback for AHAH additions.
+ * Checks whether the title is unique
+ */
 function library_title_js() {
   $title = $_POST['title'];
 
@@ -682,7 +700,6 @@ function library_search($op = 'search', $keys = NULL, $skip_access_check = FALSE
         $keys = search_query_insert($keys, 'category');
       }
       if ($status = search_query_extract($keys, 'library_status')) {
-        dprint_r($status);
 /*
         $categories = array();
         foreach (explode(',', $category) as $c) {
@@ -748,7 +765,7 @@ function library_search($op = 'search', $keys = NULL, $skip_access_check = FALSE
         $total = 1;
       }
       else {
-        $select2 = implode(' + ', $ranking) . ' AS score';
+        $select2 = implode(' + ', $ranking) .' AS score';
       }
       
       // Do search.
@@ -855,8 +872,8 @@ function library_load_items($node) {
 }
 
 /**
- *
- */ 
+ * Update Library Item Data for a given node
+ */
 function library_update_items($node) {
   $items = $node->items;
   $row = 0;
@@ -878,8 +895,8 @@ function library_update_items($node) {
 }
 
 /**
- *
- */ 
+ * Validate Library Item Data for a given node
+ */
 function library_validate_items($node) {
   if (variable_get('library_item_barcodes', LIBRARY_NO_BARCODES) == LIBRARY_BARCODES) {
     $items = $node->items;
@@ -930,7 +947,7 @@ function library_get_overdue_items() {
         $overdueitems[$item->last_patron_id]['patron']['patron_email'] = $patron->email;
         $overdueitems[$item->last_patron_id]['patron']['patron_name'] = $patron->name_first .' '. $patron->name_last;
       }
-      $overdueitems[$item->last_patron_id]['items'][$item->id] = array('item_name' => $item->title, 'nid' =>$item->nid, 'due_date' => $item->last_due_date, 'in_circulation' => $item->in_circulation);
+      $overdueitems[$item->last_patron_id]['items'][$item->id] = array('item_name' => $item->title, 'nid' => $item->nid, 'due_date' => $item->last_due_date, 'in_circulation' => $item->in_circulation);
     }
   }
   return $overdueitems;
@@ -943,6 +960,8 @@ function library_get_overdue_items() {
  *   The date an item was made unavailable
  * @param $action
  *   The clean name of the action performed 
+ * @param $type
+ *   The node type
  * @returns a UNIX TIMESTAMP if due dates are enabled else it returns NULL
  */ 
 function library_get_due_date($checkout_date = NULL, $action, $type) {
@@ -966,8 +985,8 @@ function library_get_due_date($checkout_date = NULL, $action, $type) {
 function library_duedates_enabled($type = NULL) {
   if (is_null($type)) {
     $duedates = 0;
-    foreach(library_get_item_types() as $type) {
-      if($duedates == 0) {
+    foreach (library_get_item_types() as $type) {
+      if ($duedates == 0) {
         $duedates = variable_get('library_'. $type .'_due_dates', 0);
         if ($duedates > 0) {
           return TRUE;
@@ -1108,8 +1127,8 @@ function library_actions($actions = array(), $account = NULL) {
   $actions = array();
   while ($action = db_fetch_object($result)) {
     if ($user_all_library_actions || user_access('submit library '. $action->name)) {
-	  $actions[$action->aid] = array('name' => t($action->name), 'status_change' => $action->status_change);
-	}
+      $actions[$action->aid] = array('name' => t($action->name), 'status_change' => $action->status_change);
+    }
   }
   return array_filter($actions);
 }
@@ -1139,9 +1158,9 @@ function library_get_action_links($item, $item_copy = NULL) {
   $secondary_actions = array();
   if ($item['in_circulation'] == LIBRARY_REFERENCE_ONLY) {
     $reference_actions = variable_get('library_links_display_reference', array());
-	foreach ($reference_actions as $aid) {
-	 $aids[] = $aid;
-	}
+    foreach ($reference_actions as $aid) {
+      $aids[] = $aid;
+    }
   }
   else if ($item['library_status'] == LIBRARY_ITEM_AVAILABLE) {
     $available_actions = variable_get('library_links_display_available', array());
@@ -1193,7 +1212,7 @@ function library_get_action_items_by_node($items) {
     $sort_term = array_map('strtolower', $sort_term);
     array_multisort($sort_term, SORT_DESC, $items);
 
-    foreach($items as $item) {
+    foreach ($items as $item) {
       switch ($item['library_status']) {
         case LIBRARY_ITEM_AVAILABLE:
           $action_items['available'] = $item;
@@ -1295,8 +1314,8 @@ function library_autocomplete_input($item = NULL) {
   }
   else {
     $my_default_value = ($item ? $item->title : '');
-	$my_default_value .= (!empty($item->version) ? ' '. $item->version : '');
-	$my_default_value .=  ($item ? ' [id:'. $item->id .']' : '');
+    $my_default_value .= (!empty($item->version) ? ' '. $item->version : '');
+    $my_default_value .=  ($item ? ' [id:'. $item->id .']' : '');
     $form['item_id'] = array(
       '#type' => 'textfield',
       '#title' => t('Library Item'),
@@ -1386,7 +1405,7 @@ function library_get_table_row($node, $var) {
   if ($var['display_categories']) {
     $categories = array(); 
 
-    foreach(variable_get('library_taxonomy_display', array()) as $vocab){
+    foreach (variable_get('library_taxonomy_display', array()) as $vocab) {
       $terms =  taxonomy_node_get_terms_by_vocabulary($node, $vocab);
       foreach ($terms as $term) {
         $categories[] = l($term->name, 'taxonomy/term/'. $term->tid);
@@ -1410,7 +1429,7 @@ function library_get_table_row($node, $var) {
   }
 
   if ($var['use_barcodes']) {
-    foreach($items as $item) {
+    foreach ($items as $item) {
       $row = $node_row;
       if ($var['use_barcodes']) {
         $row[] = $item['barcode'];

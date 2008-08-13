@@ -57,7 +57,7 @@ function theme_library_items($node) {
       $temp_array[] = library_get_status_text($item);
     }
     $temp_array[] = $item['notes'];
-    $temp_array[] = implode(" | ", library_get_action_links($item)) . ' ';
+    $temp_array[] = implode(" | ", library_get_action_links($item)) .' ';
     $rows[] = $temp_array;
   }
   return theme('table', $header, $rows);
@@ -102,7 +102,7 @@ function theme_library_items_field($form) {
     }
 
     $row['data'][] = array('data' => drupal_render($form[$key]['in_circulation']), 'class' => 'library_circulation');
-	$row['data'][] = array('data' => drupal_render($form[$key]['notes']), 'class' => 'library_notes');
+    $row['data'][] = array('data' => drupal_render($form[$key]['notes']), 'class' => 'library_notes');
     $row['data'][] = array('data' => drupal_render($form[$key]['id']), 'class' => 'library-id');
 
     if ($key > 0) {

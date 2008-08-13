@@ -1,6 +1,6 @@
 ; $Id$
 name 		= "Patron"
-description 	= "Create a patron content type for use with the library module.  This module provides no additional functionality by itself, but is required for the library."
+description 	= "Create a patron content type for use with the library module.  This module must be enabled if you wish to use library."
 package 	= Library
 core 		= "6.x"
 

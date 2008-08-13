@@ -20,12 +20,18 @@ function library_admin_settings() {
     '#return_value' => 1,
     '#description' => t('To display a warning if a title is a duplicate, check this box. This is highly recommended if you are not using barcodes.'),
   );
+  $form['library_search_block'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('Modify default search block to search library content.'),
+    '#default_value' => variable_get('library_search_block', 0),
+    '#return_value' => 1,
+  );
   $form['library_status_display'] = array(
     '#type' => 'checkbox',
     '#title' => t('Library Status'),
     '#default_value' => variable_get('library_status_display', 0),
     '#return_value' => 1,
-	'#description' => t('To display library status on individual library nodes, check this box.'),
+    '#description' => t('To display library status on individual library nodes, check this box.'),
   );
 
   $form['library_action_display'] = array(
@@ -39,18 +45,18 @@ function library_admin_settings() {
   $when_reference = array();
   foreach (library_actions() as $aid => $action) {
     switch ($action['status_change']) {
-	  case LIBRARY_ACTION_NO_CHANGE: 
-	    $when_available[$aid] = $action['name'];
-		$when_unavailable[$aid] = $action['name'];
-		$when_reference[$aid] = $action['name'];
-	    break;
-	  case LIBRARY_ACTION_TYPE_UNAVAILABLE:
-	    $when_available[$aid] = $action['name'];
-	    break;
-	  case LIBRARY_ACTION_TYPE_AVAILABLE:
-	    $when_unavailable[$aid] = $action['name'];
-	    break;
-	}
+      case LIBRARY_ACTION_NO_CHANGE: 
+        $when_available[$aid] = $action['name'];
+        $when_unavailable[$aid] = $action['name'];
+        $when_reference[$aid] = $action['name'];
+        break;
+      case LIBRARY_ACTION_TYPE_UNAVAILABLE:
+        $when_available[$aid] = $action['name'];
+        break;
+      case LIBRARY_ACTION_TYPE_AVAILABLE:
+        $when_unavailable[$aid] = $action['name'];
+        break;
+    }
   }
   $form['library_action_display']['library_links_display_available'] = array(
     '#type' => 'checkboxes',
@@ -88,15 +94,15 @@ function library_admin_settings() {
   );
   if (module_exists('taxonomy')) {
     $vocabularies = array();
-    foreach(taxonomy_get_vocabularies() as $vid => $vocab) {
-	  $vocabularies[$vid] = $vocab->name;
-	}
+    foreach (taxonomy_get_vocabularies() as $vid => $vocab) {
+      $vocabularies[$vid] = $vocab->name;
+    }
     $form['library_item_list_display']['library_taxonomy_display'] = array(
       '#type' => 'checkboxes',
       '#title' => t('Display Associated Taxonomy Terms in Library View'),
       '#default_value' => variable_get('library_taxonomy_display', array()),
-	  '#options' => $vocabularies,
-	  '#description' => t('Select the vocabularies from which you would like to display taxonomy terms. If no vocabularies are selected, terms will not be displayed.'),
+      '#options' => $vocabularies,
+      '#description' => t('Select the vocabularies from which you would like to display taxonomy terms. If no vocabularies are selected, terms will not be displayed.'),
     );
   }
   $form['library_text_display'] = array(
@@ -145,7 +151,7 @@ function library_admin_settings_overdue() {
           '#type' => 'fieldset',
           '#title' => t($type .' '. $action['name'] .' Period'),
           '#description' => t('The maximum time a patron may %action a %type . Days and hours are combined into one value. Enter a whole number greater than 0 in days or hours if you want to have duedates for this item type with this action.', array('%type' => $type, '%action' => $action['name'])),
-	   '#attributes' => array('class' => 'check-out-period-fieldset'),
+          '#attributes' => array('class' => 'check-out-period-fieldset'),
         );
         $input_name_days = 'library_days_for_'. $type .'_'. $clean;
         $form[$input_name][$input_name_days] = array(
@@ -217,8 +223,8 @@ function library_admin_settings_overdue_validate($form, &$form_state) {
         }
         variable_set('library_period_for_'. $type .'_'. $clean, $total);
       }
-	}
-	variable_set('library_'. $type .'_due_dates', $duedates_enabled);
+    }
+    variable_set('library_'. $type .'_due_dates', $duedates_enabled);
   }
 }
 
@@ -336,15 +342,15 @@ function library_admin_action_submit($form, &$form_state) {
   else if ($form_state['values']['op'] == t('Delete action')) {
     db_query('DELETE FROM {library_actions} WHERE aid = %d', $form_state['values']['aid']);
     db_query('DELETE FROM {library_transactions} WHERE action_aid = %d', $form_state['values']['aid']);
-	$available_display = variable_get('library_links_display_available', array());
-	$unavailable_display = variable_get('library_links_display_unavailable', array());
-	$reference_display = variable_get('library_links_display_reference', array());
+    $available_display = variable_get('library_links_display_available', array());
+    $unavailable_display = variable_get('library_links_display_unavailable', array());
+    $reference_display = variable_get('library_links_display_reference', array());
     $key = array_search($form_state['values']['aid'], $available_display);
     if ($key !== FALSE) {
       unset($available_display[$key]);
       variable_set('library_links_display_available', $available_display);
     }
-	$key2 = array_search($form_state['values']['aid'], $unavailable_display);
+    $key2 = array_search($form_state['values']['aid'], $unavailable_display);
     if ($key2 !== FALSE) {
       unset($unavailable_display[$key2]);
       variable_set('library_links_display_unavailable', $unavailable_display);
@@ -354,7 +360,6 @@ function library_admin_action_submit($form, &$form_state) {
       unset($reference_display[$key3]);
       variable_set('library_links_display_reference', $reference_display);
     }
-    //variable_del('library_links_display_'. library_clean_action_name($form_state['values']['name']));
     drupal_set_message(t('The action has been deleted.'));
   }
   else if ($form_state['values']['op'] == t('Add action')) {
@@ -371,18 +376,15 @@ function library_admin_action_submit($form, &$form_state) {
 function library_autocomplete($string) {
   $matches = array();
   if (variable_get('library_item_barcodes', LIBRARY_NO_BARCODES) == LIBRARY_BARCODES) {
-    $result = db_query_range("SELECT l.id, l.barcode, n.title FROM {node} n INNER JOIN {library} l ON n.nid = l.nid WHERE l.in_circulation = %d AND l.barcode <> '' AND LOWER(l.barcode) LIKE LOWER('%s%%')", LIBRARY_CIRCULATION, check_plain($string), 0, 10);
+    $result = db_query_range("SELECT l.id, l.barcode, n.title FROM {node} n INNER JOIN {library} l ON n.nid = l.nid WHERE n.status = 1 AND n.type <> 'patron' AND l.barcode <> '' AND LOWER(l.barcode) LIKE LOWER('%s%%')", check_plain($string), 0, 10);
     while ($item = db_fetch_object($result)) {
       $matches[$item->barcode .' [title:'. $item->title .'] [id:'. $item->id .']'] = check_plain($item->barcode);
     }
   }
   else {
-    $result = db_query_range("SELECT DISTINCT l.id, n.title, l.version FROM {node} n INNER JOIN {library} l ON n.nid = l.nid WHERE l.in_circulation = %d and LOWER(n.title) LIKE LOWER('%s%%')", LIBRARY_CIRCULATION, check_plain($string), 0, 10);
+    $result = db_query_range("SELECT DISTINCT l.id, n.title FROM {node} n INNER JOIN {library} l ON n.nid = l.nid WHERE n.status = 1 AND n.type <> 'patron' AND LOWER(n.title) LIKE LOWER('%s%%')", check_plain($string), 0, 10);
     while ($item = db_fetch_object($result)) {
-	  $my_key = $item->title;
-	  $my_key .= (!empty($item->volume) ? ' [v. '. $item->volume .']' : '');
-	  $my_key .= (!empty($item->issue) ? ' [no. '. $item->issue .']' : '');
-	  $my_key .= ' [id:'. $item->id .']';
+      $my_key = $item->title .' [id:'. $item->id .']';
       $matches[$my_key] = check_plain($my_key);
     }
   }
@@ -390,7 +392,9 @@ function library_autocomplete($string) {
   exit();
 }
 
-
+/*
+ * Send email to patrons with overdue items
+ */
 function library_notify_overdue() {
   if (library_duedates_enabled()) {
     $records = library_get_overdue_items();

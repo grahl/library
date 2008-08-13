@@ -142,7 +142,7 @@ function library_install() {
   db_query("INSERT INTO {library_actions} (name, status_change) VALUES ('%s', %d)", 'Check In', 2);
 
   // Notify of changes
-  drupal_set_message(t('Library module successfully installed.'));
+  drupal_set_message(t('Library module successfully installed. You can configure library settings <a href="@link">here</a>. To start creating library items, edit one or more content types to be included in the library.', array('@link' => 'admin/settings/library')));
 
 }
 
@@ -150,6 +150,13 @@ function library_install() {
  * Implementation of hook_uninstall().
  */
 function library_uninstall() {
+  foreach (library_get_content_fields() as $fields) {
+    foreach ($fields as $type) {
+      foreach ($type as $field) {
+        variable_del('library_display_field_'. $field['field_name']);
+      }
+    }
+  }
   foreach (node_get_types() as $type => $info) {
     variable_del('library_'. $type .'_due_dates');
     variable_del('library_'. $type);
@@ -159,12 +166,14 @@ function library_uninstall() {
       variable_del('library_period_for_'. $type .'_'. library_clean_action_name($value['name']));
     }
   }
+
   variable_del('library_links_display_available');
   variable_del('library_links_display_unavailable');
   variable_del('library_links_display_reference');
   variable_del('library_item_barcodes');
   variable_del('library_unique_titles');
   variable_del('library_cron');
+  variable_del('library_list_status_display');
   variable_del('library_status_display');
   variable_del('library_quantity_display');
   variable_del('library_taxonomy_display');

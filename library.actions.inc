@@ -39,12 +39,7 @@ function library_action_info() {
   foreach (library_actions() as $aid => $action) {
     $hooks[] = 'after_'. library_clean_action_name($action['name']);
   }
-  /*
-  $no_change_hooks = array();
-  foreach (library_actions(LIBRARY_ACTION_NO_CHANGE) as $aid => $action) {
-    $no_change_hooks[] = 'after_'. library_clean_action_name($action['name']);
-  }
-  */
+
   return array(
     'library_send_email_action' => array(
       'description' => t('Send Library e-mail'),
@@ -55,7 +50,7 @@ function library_action_info() {
       )
     ),
     'library_renew_action' => array(
-      'description' => t('Renew Library Item'),
+      'description' => t('Extend Library Item Due Date'),
       'type' => 'library',
       'configurable' => FALSE,
       'hooks' => array(
@@ -205,7 +200,7 @@ function library_send_email_action(&$object, $context) {
   $recipient = $context['recipient'];
   $patron = $context['patron'];
   $language = language_default();
-  if(!empty($patron->uid)) {
+  if (!empty($patron->uid)) {
     $account = user_load($patron->uid);
     $language = user_preferred_language($account);
   }

@@ -432,10 +432,10 @@ function patron_email_js() {
 	  
         // We retreive the cached form, change the value, and resave.
         $form = form_get_cache($form_build_id, $form_state);
-	 form_set_value($form['required_for_library']['patron_uid'], $patron->uid, $form_state);
+        form_set_value($form['required_for_library']['patron_uid'], $patron->uid, $form_state);
 	
         $output = 'Matching Drupal user found. Username: '. $patron->name;
-	 print drupal_json(array('data' => $output));
+        print drupal_json(array('data' => $output));
       }
     }
   }
@@ -524,7 +524,7 @@ function patron_user($op, &$edit, &$user, $category = NULL) {
             '#value' => l($patron->name_first .' '. $patron->name_last, 'node/'. $patron->nid),
             '#attributes' => array('class' => 'profile-patron'),
           );
-	 }
+        }
         break;
       case 'register':
         if (variable_get('patron_autocreate', 0) == 1) {
