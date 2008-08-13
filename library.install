@@ -1,0 +1,187 @@
+<?php
+// $Id$
+
+/**
+ * @author Jess Straatmann
+ * @file library.install
+ * Install and uninstall all required databases.
+ * Also do incremental database updates.
+ */
+ 
+function library_schema() {
+  $schema['library'] = array(
+    'description' => t('Determines if a library item may be checked out.'),
+    'fields' => array(
+      'id' => array(
+        'description' => t('The primary identifier for a library item.'),
+        'type' => 'serial',
+        'unsigned' => TRUE,
+        'not null' => TRUE),
+        'barcode' => array(
+        'description' => t('The barcode/identifier for this item.'),
+        'type' => 'varchar',
+        'length' => 60,
+        'not null' => FALSE,
+        'default' => ''),
+      'nid' => array(
+        'description' => t('The node identifier.'),
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE),
+      'in_circulation' => array(
+        'description' => t('Boolean indicating whether the item is in circulation.'),
+        'type' => 'int',
+        'not null' => TRUE,
+        'default' => 0),
+      'library_status' => array(
+        'description' => t('Boolean indicating whether the item is available. Not directly editable.'),
+        'type' => 'int',
+        'not null' => TRUE,
+        'default' => 0),
+      'notes' => array(
+        'description' => t('Short description field for additional comments about the item.'),
+        'type' => 'varchar',
+        'length' => 256,
+        'not null' => FALSE,
+        'default' => ''),
+      'created' => array(
+        'type' => 'int',
+        'description' => t('Timestamp for when the item was created.'),
+        'not null' => TRUE,
+        'default' => 0),
+     ),
+     'indexes' => array(
+      'nid'     => array('nid'),
+     ),
+    'primary key' => array('id'),
+  );
+  $schema['library_transactions'] = array(
+    'description' => t('The table where library transactions are stored.'),
+    'fields' => array(
+      'tid' => array(
+        'description' => t('The primary identifier for a transaction.'),
+        'type' => 'serial',
+        'unsigned' => TRUE,
+        'not null' => TRUE),
+      'item_id' => array(
+        'description' => t('The associated library item.'),
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE),
+      'nid' => array(
+        'description' => t('The associated library node.'),
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE),
+      'patron_id' => array(
+        'description' => t('The associated customer.'),
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE),
+      'action_aid' => array(
+        'description' => t('The action performed.'),
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE),
+      'duedate' => array(
+        'type' => 'int',
+        'description' => t('Timestamp for the current duedate.'),
+        'not null' => FALSE,
+        'default' => NULL),
+      'notes' => array(
+        'description' => t('Short description field for additional comments about the transaction.'),
+        'type' => 'varchar',
+        'length' => 256,
+        'not null' => FALSE,
+        'default' => NULL),
+      'created' => array(
+        'type' => 'int',
+        'description' => t('Timestamp for when transaction occurred.'),
+        'not null' => TRUE,
+        'default' => 0),
+    ),
+    'indexes' => array(
+      'item_id'     => array('item_id'),
+      'patron_id'     => array('patron_id'),
+      'action_aid'  => array('action_aid'),
+      ),
+    'primary key' => array('tid'),
+    );
+ $schema['library_actions'] = array(
+    'description' => t('The table where library transactions are stored.'),
+    'fields' => array(
+      'aid' => array(
+        'description' => t('The unique identifier of this action.'),
+        'type' => 'serial',
+        'unsigned' => TRUE,
+        'not null' => TRUE),
+      'name' => array(
+        'description' => t('The name of this action.'),
+        'type' => 'varchar',
+        'length' => 60,
+        'not null' => TRUE,
+        'default' => ''),
+      'status_change' => array(
+        'description' => t('Indicates if the action changes item status.'),
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'default' => 0),
+    ),
+    'primary key' => array('aid'),
+  );
+  return $schema;
+}
+
+/**
+ * Implementation of hook_install()
+ */
+function library_install() {
+  drupal_install_schema('library');
+  db_query("INSERT INTO {library_actions} (name, status_change) VALUES ('%s', %d)", 'Check Out', 1);
+  db_query("INSERT INTO {library_actions} (name, status_change) VALUES ('%s', %d)", 'Check In', 2);
+
+  // Notify of changes
+  drupal_set_message(t('Library module successfully installed.'));
+
+}
+
+/**
+ * Implementation of hook_uninstall().
+ */
+function library_uninstall() {
+  foreach (node_get_types() as $type => $info) {
+    variable_del('library_'. $type .'_due_dates');
+    variable_del('library_'. $type);
+    foreach (library_actions() as $key => $value) {
+      variable_del('library_days_for_'. $type .'_'. library_clean_action_name($value['name']));
+      variable_del('library_hours_for_'. $type .'_'. library_clean_action_name($value['name']));
+      variable_del('library_period_for_'. $type .'_'. library_clean_action_name($value['name']));
+    }
+  }
+  variable_del('library_links_display_available');
+  variable_del('library_links_display_unavailable');
+  variable_del('library_links_display_reference');
+  variable_del('library_item_barcodes');
+  variable_del('library_unique_titles');
+  variable_del('library_cron');
+  variable_del('library_status_display');
+  variable_del('library_quantity_display');
+  variable_del('library_taxonomy_display');
+  variable_del('library_available_text');
+  variable_del('library_reference_only_text');
+  variable_del('library_unavailable_noduedates_text');
+  variable_del('library_send_automatic_email');
+  variable_del('library_mail_notify_overdue_subject');
+  variable_del('library_mail_notify_overdue_body');
+  drupal_uninstall_schema('library');
+
+  // Clear the cache tables.
+  cache_clear_all(null, 'cache');
+  cache_clear_all(null, 'cache_filter');
+  cache_clear_all(null, 'cache_menu');
+  cache_clear_all(null, 'cache_page');
+
+  drupal_set_message(t('Library module successfully uninstalled'));
+}
+
