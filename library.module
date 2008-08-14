@@ -1116,9 +1116,12 @@ function library_get_last_transaction_by_item($item, $type = NULL) {
  * @return 
  *   Array of actions
  */ 
-function library_actions($actions = array(), $account = NULL) {
-  if (!empty($actions)) {
+function library_actions($actions = NULL, $account = NULL) {
+  if (is_array($actions) && !empty($actions)) {
     $result = db_query("SELECT name, aid, status_change from {library_actions} WHERE aid IN(%s) ORDER BY name, aid, status_change", implode(', ', $actions));
+  }
+  elseif (is_array($actions) && empty($actions)) {
+    $result = NULL;
   }
   else {
     $result = db_query("SELECT name, aid, status_change from {library_actions} ORDER BY name, aid, status_change");
@@ -1348,7 +1351,7 @@ function library_get_table_header() {
   $results['use_barcodes'] = variable_get('library_item_barcodes', LIBRARY_NO_BARCODES) == LIBRARY_BARCODES;
   $results['display_quantity'] = variable_get('library_quantity_display', 0) == 1;
   global $user;
-  $results['available_actions'] = library_actions(array(), $user);
+  $results['available_actions'] = library_actions(NULL, $user);
 
   $fields = array();
   $content_fields = array();

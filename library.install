@@ -140,9 +140,9 @@ function library_install() {
   drupal_install_schema('library');
   db_query("INSERT INTO {library_actions} (name, status_change) VALUES ('%s', %d)", 'Check Out', 1);
   db_query("INSERT INTO {library_actions} (name, status_change) VALUES ('%s', %d)", 'Check In', 2);
-
+  global $base_url;
   // Notify of changes
-  drupal_set_message(t('Library module successfully installed. You can configure library settings <a href="@link">here</a>. To start creating library items, edit one or more content types to be included in the library.', array('@link' => 'admin/settings/library')));
+  drupal_set_message(t('Library module successfully installed. You can configure library settings <a href="@link">here</a>. To start creating library items, edit one or more content types to be included in the library.', array('@link' => $base_url .'/admin/settings/library')));
 
 }
 
