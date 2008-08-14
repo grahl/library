@@ -134,7 +134,10 @@ function library_transaction_form_validate($form, &$form_state) {
           if ($form_state['values']['action_aid']) {
             $action = library_get_action($form_state['values']['action_aid']);
             if (!empty($action)) {
-              if ($item->library_status == LIBRARY_ITEM_AVAILABLE && $action->status_change == LIBRARY_ITEM_TYPE_AVAILABLE) {
+              if ($item->in_circulation == LIBRARY_REFERENCE_ONLY && $action->status_change <> LIBRARY_ACTION_NO_CHANGE) {
+                form_set_error('action_aid', t('This item is not in circulation.'));
+              } 
+              elseif ($item->library_status == LIBRARY_ITEM_AVAILABLE && $action->status_change == LIBRARY_ITEM_TYPE_AVAILABLE) {
                 form_set_error('action_aid', t('This item is already available.'));
               }
               elseif ($item->library_status == LIBRARY_ITEM_UNAVAILABLE &&  $action->status_change == LIBRARY_ITEM_TYPE_UNAVAILABLE) {
