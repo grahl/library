@@ -101,10 +101,12 @@ function library_mail($key, &$message, $params) {
       $variables = array(
         '%site_name' => variable_get('site_name', 'Drupal'),
         '%patron_name' => $context['patron']['name'],
-        '%patron_email' => $context['patron']['email'], 
+        '%patron_email' => $context['patron']['email'],
+        '%patron_id' => $context['patron']['nid'], 
         '%node_url' => url('node/'. $context['item']['nid'], array('absolute' => TRUE)),  
         '%node_type' => $context['item']['node_type'],
-        '%title' => $context['item']['title'],    
+        '%title' => $context['item']['title'],
+        '%item_id' => $context['item']['id'],    
         '%barcode' => $context['item']['barcode'], 
         '%transaction_name' => $context['transaction']['action_name'], 
         '%notes' => $context['transaction']['notes'],
@@ -160,7 +162,7 @@ function library_send_email_action_form($context) {
     '#default_value' => $context['message'],
     '#cols' => '80',
     '#rows' => '20',
-    '#description' => t('The message that should be sent. You may include the following variables: %site_name, %patron_name, %patron_email, %node_url, %node_type, %title, %barcode, %transaction_name, %notes. Not all variables will be available in all contexts.'),
+    '#description' => t('The message that should be sent. You may include the following variables: %site_name, %patron_name, %patron_email, %node_url, %item_id, %node_type, %title, %barcode, %transaction_name, %notes. Not all variables will be available in all contexts.'),
   );
   return $form;
 }

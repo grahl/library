@@ -47,18 +47,19 @@ function theme_library_items($node) {
   $header[] = t('Notes');
   $header[] = t('Actions');
   $rows = array();
-  
-  foreach ($items as $key => $item) {
-    $temp_array = array(($key + 1));
-    if ($barcodes) {
-      $temp_array[] = $item['barcode'];
+  if ($items) {
+    foreach ($items as $key => $item) {
+      $temp_array = array(($key + 1));
+      if ($barcodes) {
+        $temp_array[] = $item['barcode'];
+      }
+      if ($display_status) {
+        $temp_array[] = library_get_status_text($item);
+      }
+      $temp_array[] = $item['notes'];
+      $temp_array[] = implode(" | ", library_get_action_links($item)) .' ';
+      $rows[] = $temp_array;
     }
-    if ($display_status) {
-      $temp_array[] = library_get_status_text($item);
-    }
-    $temp_array[] = $item['notes'];
-    $temp_array[] = implode(" | ", library_get_action_links($item)) .' ';
-    $rows[] = $temp_array;
   }
   return theme('table', $header, $rows);
 }

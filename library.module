@@ -63,6 +63,11 @@ define('LIBRARY_ACTION_TYPE_UNAVAILABLE', 1);
 define('LIBRARY_ACTION_TYPE_AVAILABLE', 2);
 
 /**
+ * Number of results to display per page
+ */
+define('LIBRARY_RESULTS_PER_PAGE', 50);
+
+/**
 * Valid permissions for this module
 * @return array An array of valid permissions for this module
 */
@@ -70,6 +75,7 @@ function library_perm() {
   $permissions = array(
     'administer library', 
     'administer transactions',
+    'view library history',
   );
   foreach (library_actions() as $aid => $action) {
     $permissions[] = 'submit library '. $action['name'];
@@ -120,6 +126,14 @@ function library_help($path, $arg) {
     case 'library-items/overdue':
       return t('<p>Below is a list of all overdue library items.  If you are a library administrator, you may <a href="@sendemail">send an email notifying all patrons with overdue items</a>.</p>', array('@sendemail' => url('library-items/overdue/email')));
   }
+}
+
+function library_content_extra_fields($type_name) {
+  $extra = array();
+  if (module_exists('content') && variable_get('library_'. $type_name, LIBRARY_ITEM_NOT_IN_LIBRARY) == LIBRARY_ITEM_IN_LIBRARY) {
+    $extra['item_wrapper'] = array('label' => 'Library', 'weight' => -4);
+  }  
+  return $extra;
 }
 
 /**
@@ -212,7 +226,7 @@ function library_form_alter(&$form, $form_state, $form_id) {
     // Keyword boxes:
     $form['advanced'] = array(
       '#type' => 'fieldset',
-      '#title' => t('Library advanced search'),
+      '#title' => t('More Search Options'),
       '#collapsible' => TRUE,
       '#collapsed' => TRUE,
       '#attributes' => array('class' => 'search-advanced'),
@@ -263,15 +277,7 @@ function library_form_alter(&$form, $form_state, $form_id) {
       '#suffix' => '</div>',
       '#options' => $types,
     );
-/*
-    $form['advanced']['library_status'] = array(
-      '#type' => 'checkboxes',
-      '#title' => t('Only with the status of'),
-      '#prefix' => '<div class="criterion">',
-      '#suffix' => '</div>',
-      '#options' => array(variable_get('library_available_text', 'AVAILABLE'), variable_get('library_unavailable_noduedates_text', 'UNAVAILABLE'), variable_get('library_reference_only_text', 'REFERENCE ONLY')),
-    );
-*/
+
     $form['advanced']['submit'] = array(
       '#type' => 'submit',
       '#value' => t('Advanced search'),
@@ -300,6 +306,8 @@ function library_form_alter(&$form, $form_state, $form_id) {
       $form = array_merge(array_slice($form, 0, $pos), $newform, array_slice($form, $pos));
       $form['#submit'][] = 'library_field_submit';
     }
+  }
+  else if ($form_id == '') {
   }
   else if ($form_id == 'search_block_form' && variable_get('library_search_block', 0) == 1) {
     $form['#submit'][] = 'library_search_box_form_submit';
@@ -450,8 +458,7 @@ function library_menu() {
     'title' => 'History',
     'page callback' => 'library_history',
     'page arguments' => array(1),
-    'access callback' => 'node_access',
-    'access arguments' => array('view', 1),
+    'access arguments' => array('view library history'),
     'type' => MENU_LOCAL_TASK,
     'weight' => 2,
     'file' => 'library.pages.inc',
@@ -502,8 +509,8 @@ function library_menu() {
     'weight' => -10,
   );
   $items['admin/settings/library/duedates'] = array(
-    'title' => 'Due Dates',
-    'description' => 'Enable due dates, define check out periods, and configure overdue emails.',
+    'title' => 'Loan Periods',
+    'description' => 'Enable loan periods for checkouts and configure overdue emails.',
     'page callback' => 'drupal_get_form',
     'page arguments' => array('library_admin_settings_overdue'),
     'access arguments' => array('administer library'),
@@ -656,13 +663,6 @@ function library_search($op = 'search', $keys = NULL, $skip_access_check = FALSE
   switch ($op) {
     case 'name':
       return t('Library');
-    case 'reset':
-      db_query("UPDATE {search_dataset} SET reindex = %d WHERE type = 'node'", time());
-      return;
-    case 'status':
-      $total = db_result(db_query('SELECT COUNT(*) FROM {library} l INNER JOIN {node} n ON l.nid = n.nid WHERE n.status = 1'));
-      $remaining = db_result(db_query("SELECT COUNT(*) FROM (SELECT n.nid FROM {library} l INNER JOIN {node} n ON l.nid = n.nid WHERE n.status = 1) a LEFT JOIN {search_dataset} d ON d.type = 'node' AND d.sid = a.nid WHERE AND (d.sid IS NULL OR d.reindex <> 0)"));
-      return array('remaining' => $remaining, 'total' => $total);
     case 'search':
       // Build matching conditions
       list($join1, $where1) = _db_rewrite_sql();
@@ -699,19 +699,6 @@ function library_search($op = 'search', $keys = NULL, $skip_access_check = FALSE
         $join1 .= ' INNER JOIN {term_node} tn ON n.vid = tn.vid';
         $keys = search_query_insert($keys, 'category');
       }
-      if ($status = search_query_extract($keys, 'library_status')) {
-/*
-        $categories = array();
-        foreach (explode(',', $category) as $c) {
-          $categories[] = "tn.tid = %d";
-          $arguments1[] = $c;
-        }
-        $conditions1 .= ' AND ('. implode(' OR ', $categories) .')';
-        $join1 .= ' INNER JOIN {term_node} tn ON n.vid = tn.vid';
-        $keys = search_query_insert($keys, 'category');
-*/
-      }
-
       // Build ranking expression (we try to map each parameter to a
       // uniform distribution in the range 0..1).
       $ranking = array();
@@ -724,26 +711,6 @@ function library_search($op = 'search', $keys = NULL, $skip_access_check = FALSE
         // Average relevance values hover around 0.15
         $ranking[] = '%d * i.relevance';
         $arguments2[] = $weight;
-        $total += $weight;
-      }
-      if ($weight = (int)variable_get('node_rank_recent', 5)) {
-        // Exponential decay with half-life of 6 months, starting at last indexed node
-        $ranking[] = '%d * POW(2, (GREATEST(MAX(n.created), MAX(n.changed), MAX(c.last_comment_timestamp)) - %d) * 6.43e-8)';
-        $arguments2[] = $weight;
-        $arguments2[] = (int)variable_get('node_cron_last', 0);
-        $join2 .= ' LEFT JOIN {node_comment_statistics} c ON c.nid = i.sid';
-        $stats_join = TRUE;
-        $total += $weight;
-      }
-      if (module_exists('comment') && $weight = (int)variable_get('node_rank_comments', 5)) {
-        // Inverse law that maps the highest reply count on the site to 1 and 0 to 0.
-        $scale = variable_get('node_cron_comments_scale', 0.0);
-        $ranking[] = '%d * (2.0 - 2.0 / (1.0 + MAX(c.comment_count) * %f))';
-        $arguments2[] = $weight;
-        $arguments2[] = $scale;
-        if (!$stats_join) {
-          $join2 .= ' LEFT JOIN {node_comment_statistics} c ON c.nid = i.sid';
-        }
         $total += $weight;
       }
       if (module_exists('statistics') && variable_get('statistics_count_content_views', 0) &&
@@ -769,7 +736,7 @@ function library_search($op = 'search', $keys = NULL, $skip_access_check = FALSE
       }
       
       // Do search.
-      $find = do_search($keys, 'node', 'INNER JOIN {node} n ON n.nid = i.sid '. $join1, $conditions1 . (empty($where1) ? '' : ' AND '. $where1), $arguments1, $select2, $join2, $arguments2);
+      $find = do_search($keys, 'node', 'INNER JOIN {node} n ON n.nid = i.sid '. $join1, $conditions1 . (empty($where1) ? '' : ' AND '. $where1), $arguments1, $select2, $join2, $arguments2, 'ORDER BY n.title, score DESC');
 
       // Load results.
       $results = array();
@@ -800,7 +767,7 @@ function library_search_page($results) {
   $rows = $results;
 
   $output = theme('table', $header, $rows, array('class' => 'library-list'));
-  $output .= theme('pager', NULL, 50, 0);
+  $output .= theme('pager', NULL, 10);
   return $output;
 }
 
@@ -831,9 +798,17 @@ function library_nodeapi(&$node, $op, $teaser = NULL, $page = NULL) {
         break;
 
       case 'view':
+        $item_weight = -4;
+        if (module_exists('content')) {
+          foreach (variable_get('content_extra_weights_'. $node->type, array()) as $key => $value) {
+            if ($key == 'item_wrapper') {
+              $item_weight = $value;
+            }
+          }
+        }
         $node->content['items'] = array(
           '#value' => theme('library_items', $node),
-          '#weight' => -4,
+          '#weight' => $item_weight,
         );
         break;
     }
@@ -877,20 +852,22 @@ function library_load_items($node) {
 function library_update_items($node) {
   $items = $node->items;
   $row = 0;
-  foreach ($items as $key => $item) {
-    if ($item['delete'] == 1) {
-      db_query('DELETE FROM {library} WHERE id = %d', $item['id']);
-      unset($node->items[$key]);
-    }
-    else if (empty($item['id'])) {
-      db_query("INSERT INTO {library} (nid, barcode, in_circulation, library_status, notes, created) VALUES (%d, '%s', %d, %d, '%s', %d)", $node->nid, check_plain($item['barcode'] .''), $item['in_circulation'], LIBRARY_ITEM_AVAILABLE, $item['notes'], time());
-      $node->items[$row]['id'] = db_last_insert_id('library', 'id');
-    }
-    else {
-      db_query("UPDATE {library} SET barcode = '%s', in_circulation = %d, notes = '%s' WHERE id = %d", check_plain($item['barcode'] .''), $item['in_circulation'], check_plain($item['notes']), $item['id']);
-    }
+  if ($items) {
+    foreach ($items as $key => $item) {
+      if ($item['delete'] == 1) {
+        db_query('DELETE FROM {library} WHERE id = %d', $item['id']);
+        unset($node->items[$key]);
+      }
+      else if (empty($item['id'])) {
+        db_query("INSERT INTO {library} (nid, barcode, in_circulation, library_status, notes, created) VALUES (%d, '%s', %d, %d, '%s', %d)", $node->nid, check_plain($item['barcode'] .''), $item['in_circulation'], LIBRARY_ITEM_AVAILABLE, $item['notes'], time());
+        $node->items[$row]['id'] = db_last_insert_id('library', 'id');
+      }
+      else {
+        db_query("UPDATE {library} SET barcode = '%s', in_circulation = %d, notes = '%s' WHERE id = %d", check_plain($item['barcode'] .''), $item['in_circulation'], check_plain($item['notes']), $item['id']);
+      }
 
-    $row++;
+      $row++;
+    }
   }
 }
 
@@ -1235,8 +1212,8 @@ function library_get_action_items_by_node($items) {
  *   An array of library items
  */ 
 function library_get_items_group_by_node() {
-  $result = db_query("SELECT DISTINCT n.nid FROM {node} n INNER JOIN {library} l
-          ON n.nid = l.nid WHERE n.status = 1 ORDER BY n.title");
+  $count_select = "SELECT COUNT(*) FROM {node} WHERE status = 1 AND nid IN (SELECT nid from {library}) ORDER BY title";
+  $result = pager_query("SELECT nid FROM {node} WHERE status = 1 AND nid IN (SELECT nid from {library}) ORDER BY title", LIBRARY_RESULTS_PER_PAGE, 0, $count_select);
   $nodes = array();
   while ($node = db_fetch_object($result)) {
     $nodes[] = node_load($node->nid);
@@ -1344,9 +1321,13 @@ function library_get_content_fields() {
 
 function library_get_table_header() {
   $results = array();
-
-  $display_cat_var = variable_get('library_taxonomy_display', array());
-  $results['display_categories'] = module_exists('taxonomy') && !empty($display_cat_var);
+  $display_cat_var = FALSE;
+  foreach (variable_get('library_taxonomy_display', array()) as $key => $vocab) {
+    if ($vocab == 1) {
+      $display_cat_var = TRUE;
+    }
+  }
+  $results['display_categories'] = module_exists('taxonomy') && $display_cat_var;
   $results['display_status'] = variable_get('library_list_status_display', 0) == 1;
   $results['use_barcodes'] = variable_get('library_item_barcodes', LIBRARY_NO_BARCODES) == LIBRARY_BARCODES;
   $results['display_quantity'] = variable_get('library_quantity_display', 0) == 1;
@@ -1408,10 +1389,19 @@ function library_get_table_row($node, $var) {
   if ($var['display_categories']) {
     $categories = array(); 
 
-    foreach (variable_get('library_taxonomy_display', array()) as $vocab) {
-      $terms =  taxonomy_node_get_terms_by_vocabulary($node, $vocab);
-      foreach ($terms as $term) {
-        $categories[] = l($term->name, 'taxonomy/term/'. $term->tid);
+    foreach (variable_get('library_taxonomy_display', array()) as $key => $vocab) {
+      if ($vocab == 1) {
+        $terms =  taxonomy_node_get_terms_by_vocabulary($node, $key);
+        $cat_term = array();
+        foreach ($terms as $term) {
+          $cat_term[] = $term->name;
+        }
+        $cat_term = array_map('strtolower', $cat_term);
+        array_multisort($cat_term, SORT_ASC, $terms);
+
+        foreach ($terms as $term) {
+          $categories[] = l($term->name, 'taxonomy/term/'. $term->tid);
+        }
       }
     }
     $node_row[] = implode(" | ", $categories);

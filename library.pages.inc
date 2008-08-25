@@ -63,18 +63,20 @@ function library_transaction_form(&$form_state, $item = NULL) {
   }
   elseif ($patron) {
     $form['patron_id'] = array(
-      '#type' => 'item',
+      '#type' => 'textfield',
       '#title' => t('Patron'),
       '#value' => ($patron ? $patron->title .' [nid:'. $patron->nid .']' : ''),
+      '#disabled' => TRUE,
     );
   }
   else {
     $user_patron = patron_load_by_uid($user->uid);
     if (is_object($user_patron)) {
       $form['patron_id'] = array(
-        '#type' => 'item',
+        '#type' => 'textfield',
         '#title' => t('Patron'),
         '#value' => ($user_patron ? $user_patron->title .' [nid:'. $user_patron->nid .']' : ''),
+        '#disabled' => TRUE,
       );	
     }
     else {
@@ -224,7 +226,7 @@ function library_transaction_form_submit($form, &$form_state) {
   if (!empty($actions)) {
     actions_do($actions, $object, $context);
   }
-  $form_state['redirect'] = 'node/'. $form_state['values']['nid'] .'/library/history';
+  $form_state['redirect'] = 'node/'. $form_state['values']['nid'];
   return;
 }
 
@@ -343,8 +345,9 @@ function library_display_items() {
       $rows[] = $row;
     }
   }
-
-  return theme('table', $header, $rows, array('class' => 'library-list'));
+  $output = theme('table', $header, $rows, array('class' => 'library-list'));
+  $output .= theme('pager', NULL, LIBRARY_RESULTS_PER_PAGE);
+  return $output;
 }
 
 function library_overdue_items() {
@@ -367,7 +370,9 @@ function library_overdue_items() {
           $item = array();
         }
       }
-      return theme('table', $header, $rows);
+      $output = theme('table', $header, $rows);
+      $output .= theme('pager', NULL, LIBRARY_RESULTS_PER_PAGE, 0);
+      return $output;
     }
   }
   else {

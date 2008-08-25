@@ -35,6 +35,6 @@ form .form-radios #edit-library-1-wrapper, form .form-radios #edit-library-0-wra
   margin-right: 2em;
 }
 
-table.library-list .field .field-label {
+table.library-list .field .field-label, table.library-list .field .field-label-inline-first, table.library-list .field .field-label-inline {
   display: none;
 }
