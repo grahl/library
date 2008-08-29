@@ -86,13 +86,13 @@ function library_perm() {
 /* 
  * Determine whether a user may perform any library action
  */
-function library_action_access($aid = NULL) {
-  global $user;
+function library_action_access($aid) {
   $may_view_patron = FALSE;
   if (user_access('view patron content')) {
     $may_view_patron = TRUE;
   }
   else {
+    global $user;
     $user_patron = patron_load_by_uid($user->uid);
     if (is_object($user_patron)) {
       $may_view_patron = TRUE;
@@ -452,6 +452,7 @@ function library_menu() {
     'title' => 'Library',
     'page callback' => 'library_display_items',
     'access arguments' => array('access content'),
+    'type' => MENU_SUGGESTED_ITEM,
     'file' => 'library.pages.inc',
   );
   $items['node/%node/library/history'] = array(
@@ -471,12 +472,12 @@ function library_menu() {
     'type' => MENU_CALLBACK,
     'file' => 'library.pages.inc',
   );
-  $items['library-items/transaction/%library'] = array(
-    'title' => 'Perform an Action',
+  $items['library-items/transaction/%/%library'] = array(
+    'title' => 'Perform a Library Transaction',
     'page callback' => 'drupal_get_form',
-    'page arguments' => array('library_transaction_form', 2),
+    'page arguments' => array('library_transaction_form', 2, 3),
     'access callback' => 'library_action_access',
-    'access arguments' => array(3),
+    'access arguments' => array(2),
     'type' => MENU_CALLBACK,
     'file' => 'library.pages.inc',
   );
@@ -1114,13 +1115,15 @@ function library_actions($actions = NULL, $account = NULL) {
 }
 
 function library_get_action($aid) {
-  if ($aid) {
-    $action = db_fetch_object(db_query('SELECT * FROM {library_actions} WHERE aid = %d', $aid));
-    if ($action) {
-      return $action;
+  if (!empty($aid)) {
+    if (is_numeric($aid)) {
+      $action = db_fetch_object(db_query('SELECT * FROM {library_actions} WHERE aid = %d', $aid));
+      if ($action) {
+        return $action;
+      }
     }
   }
-  drupal_set_message(t('No action found.'));
+  return FALSE;
 }
 
 function library_clean_action_name($name) {
@@ -1129,7 +1132,7 @@ function library_clean_action_name($name) {
   return preg_replace($pattern, '', $string);
 }
 
-function library_get_action_links($item, $item_copy = NULL) {
+function library_get_action_links($item) {
   global $user;
 
   $aids = array();
@@ -1147,14 +1150,6 @@ function library_get_action_links($item, $item_copy = NULL) {
     foreach ($available_actions as $aid) {
       $aids[] = $aid;
     }
-    if (!is_null($item_copy) && $item_copy['library_status'] == LIBRARY_ITEM_UNAVAILABLE && !empty($item_copy['last_patron_id'])) {
-      $unavailable_actions = variable_get('library_links_display_unavailable', array());
-      $unavailable_aids = array();
-      foreach ($unavailable_actions as $aid) {
-        $unavailable_aids[] = $aid;
-      }
-      $secondary_aids = array_diff_key($aids, $unavailable_aids);
-    }
   }
   else {
     $unavailable_actions = variable_get('library_links_display_unavailable', array());
@@ -1163,47 +1158,27 @@ function library_get_action_links($item, $item_copy = NULL) {
     }
   }
   $actions = library_actions($aids, $user);
-  if (!empty($secondary_aids)) {
-    $secondary_actions = library_actions($secondary_aids, $user);
-  }
   $action_links = array();
+  
+  $patron_id = '';
+  if (!user_access('view patron content')) {
+    $user_patron = patron_load_by_uid($user->uid);
+    if (is_object($user_patron)) {
+      $patron_id = $user_patron->nid;
+    }
+  }
+
   foreach ($actions as $aid => $action) {
-    if ($action['status_change'] == LIBRARY_ACTION_TYPE_AVAILABLE && !empty($item['last_patron_id'])) {
-      $action_links[] = l($action['name'], 'library-items/transaction/'. $item['id'] .'/'. $aid .'/'. $item['last_patron_id']);
-    }
-    else {
-      $action_links[] = l($action['name'], 'library-items/transaction/'. $item['id'] .'/'. $aid);
-    }
-  }
-  foreach ($secondary_actions as $aid => $action) {
-    $action_links[] = l($action['name'], 'library-items/transaction/'. $item_copy['id'] .'/'. $aid .'/'. $item_copy['last_patron_id']);
-  }
-  return $action_links;
-}
-
-function library_get_action_items_by_node($items) {
-  $action_items = array();
-  $sort_term = array();
-
-  if ($items) {
-    foreach ($items as $item) {
-      $sort_term[] = $item['last_due_date'];
-    }
-    $sort_term = array_map('strtolower', $sort_term);
-    array_multisort($sort_term, SORT_DESC, $items);
-
-    foreach ($items as $item) {
-      switch ($item['library_status']) {
-        case LIBRARY_ITEM_AVAILABLE:
-          $action_items['available'] = $item;
-          break;
-        case LIBRARY_ITEM_UNAVAILABLE:
-          $action_items['unavailable'] = $item;
-          break;
+    if (($action['status_change'] == LIBRARY_ACTION_TYPE_AVAILABLE || $item['library_status'] == LIBRARY_ITEM_UNAVAILABLE) && !empty($item['last_patron_id']) ) {
+      if (empty($patron_id) || ($item['last_patron_id'] == $patron_id)) {
+        $action_links[] = l($action['name'], 'library-items/transaction/'. $aid .'/'. $item['id'] .'/'. $item['last_patron_id']);
       }
     }
+    else {
+      $action_links[] = l($action['name'], 'library-items/transaction/'. $aid .'/'. $item['id']);
+    }
   }
-  return $action_items;
+  return $action_links;
 }
 
 /**
@@ -1225,6 +1200,12 @@ function library_get_node_by_item_id($id) {
   $result = db_result(db_query_range("SELECT nid FROM {library} WHERE id = %d", $id, 0, 1));
   $node = node_load($result);
   return $node;
+}
+
+function library_get_item_by_barcode($barcode) {
+  $result = db_result(db_query_range("SELECT id FROM {library} WHERE barcode = '%s'", $barcode, 0, 1));
+  $item = library_load($result);
+  return $item;
 }
 
 /**
@@ -1261,16 +1242,13 @@ function library_cron() {
     if (!empty($records)) {
       $num_emails = 0;
       foreach ($records as $patron_id => $record) {
-/*
-        $items = array();
 
         foreach ($record['items'] as $id => $item) {
-          if (($last_update < $item['due_date']) && ($item['due_date'] <= $next_update)) {
-            $items[$id] = $item;
+          if (($last_update >= $item['due_date'])) {
+            unset($record['items'][$id]);
           }
         }
-        $record['items'] = $items;
-*/
+
         $params = $record;
         drupal_mail('library', 'notify_overdue', $params['patron']['patron_email'], language_default(), $params);
         $num_emails++;
@@ -1286,15 +1264,13 @@ function library_autocomplete_input($item = NULL) {
     $form['item_id'] = array(
       '#type' => 'textfield',
       '#title' => t('Item Barcode'),
-      '#default_value' => ($item ? $item->barcode .' [title:'. $item->title .'] [id:'. $item->id .']' : ''),
-      '#autocomplete_path' => 'library-items/autocomplete',
+      '#default_value' => ($item ? $item->barcode : ''),
       '#required' => TRUE,
-      '#description' => t('Enter the barcode and then select the item from the provided list.')
+      '#description' => t('Enter the barcode of the item.')
     );
   }
   else {
     $my_default_value = ($item ? $item->title : '');
-    $my_default_value .= (!empty($item->version) ? ' '. $item->version : '');
     $my_default_value .=  ($item ? ' [id:'. $item->id .']' : '');
     $form['item_id'] = array(
       '#type' => 'textfield',
@@ -1329,10 +1305,7 @@ function library_get_table_header() {
   }
   $results['display_categories'] = module_exists('taxonomy') && $display_cat_var;
   $results['display_status'] = variable_get('library_list_status_display', 0) == 1;
-  $results['use_barcodes'] = variable_get('library_item_barcodes', LIBRARY_NO_BARCODES) == LIBRARY_BARCODES;
   $results['display_quantity'] = variable_get('library_quantity_display', 0) == 1;
-  global $user;
-  $results['available_actions'] = library_actions(NULL, $user);
 
   $fields = array();
   $content_fields = array();
@@ -1359,17 +1332,11 @@ function library_get_table_header() {
     }
   }
   
-  if ($results['use_barcodes']) {
-    $header[]['data'] = t('Barcode');
-  }
-  elseif ($results['display_quantity']) {
+  if ($results['display_quantity']) {
     $header[]['data'] = t('Quantity');
   }
   if ($results['display_status']) {
     $header[]['data'] = t('Status');
-  }
-  if (!empty($results['available_actions'])) {
-    $header[] = array('data' => t('Actions'), 'class' => 'library-actions-column');
   }
 
   $results['header'] = $header;
@@ -1378,14 +1345,14 @@ function library_get_table_header() {
 }
 
 function library_get_table_row($node, $var) {
-  $node_row = array();
+  $row = array();
   $rows = array();
 
   if (!empty($var['fields'])) {
     content_view($node);
   }
 
-  $node_row[] = l($node->title, 'node/'. $node->nid);
+  $row[] = l($node->title, 'node/'. $node->nid);
   if ($var['display_categories']) {
     $categories = array(); 
 
@@ -1404,7 +1371,7 @@ function library_get_table_row($node, $var) {
         }
       }
     }
-    $node_row[] = implode(" | ", $categories);
+    $row[] = implode(" | ", $categories);
   }
   if (!empty($var['fields'])) {
     foreach ($var['fields'] as $name => $field) {
@@ -1412,56 +1379,19 @@ function library_get_table_row($node, $var) {
       if (isset($node->content[$field['field_name']])) { 
         $return = drupal_render($node->content[$field['field_name']]);
       }
-      $node_row[] = $return;
+      $row[] = $return;
     }
   }
 
-  $items = $node->items;
-  if (!$var['use_barcodes'] && $var['display_quantity']) {
-    $node_row[] = count($items);
+  if ($var['display_quantity']) {
+    $row[] = library_get_quantity($node);
   }
-
-  if ($var['use_barcodes']) {
-    foreach ($items as $item) {
-      $row = $node_row;
-      if ($var['use_barcodes']) {
-        $row[] = $item['barcode'];
-      }
-      if ($var['display_status']) {
-        $status = library_get_status_text($item);
-        $row[] = $status;
-      }
-      if (!empty($var['available_actions'])) {
-        $row[] = array('data' => implode(" | ", library_get_action_links($item)), 'class' => 'library-actions-column');
-      }
-      $rows[] = $row;
-    }
+  //Replace with a function to find out if there is one available item
+  $item = library_get_status_item($node);
+  if ($item && $var['display_status']) {
+    $row[]['data'] = library_get_status_text($item);
   }
-  else {
-    $action_items = library_get_action_items_by_node($items);
-    if (isset($action_items['available'])) {
-      if ($var['display_status']) {
-        $node_row[]['data'] = library_get_status_text($action_items['available']);
-      }
-      if (!empty($var['available_actions'])) {
-        if (isset($action_items['unavailable'])) {
-          $node_row[]['data'] = implode(" | ", library_get_action_links($action_items['available'], $action_items['unavailable']));
-        }
-        else {
-          $node_row[] = array('data' => implode(" | ", library_get_action_links($action_items['available'])), 'class' => 'library-actions-column');
-        }
-      }
-    }
-    else {
-      if ($var['display_status']) {
-        $node_row[]['data'] = library_get_status_text($action_items['unavailable']);
-      }
-      if (!empty($var['available_actions'])) {
-        $node_row[] = array('data' => implode(" | ", library_get_action_links($action_items['unavailable'])), 'class' => 'library-actions-column');
-      }
-    }
-    $rows[] = $node_row;
-  }
+  $rows[] = $row;
   return $rows;
 }
 
@@ -1483,6 +1413,47 @@ function library_theme() {
       'file' => 'library.theme.inc',
     ),
   );
+}
+
+function library_get_quantity($node) {
+  if ($node->items) {
+    return count($node->items);
+  }
+  else {
+    return 0;
+  }
+}
+
+function library_get_status_item($node) {
+  if ($node->items) {
+    $unavailable = array();
+	$reference = array();
+    foreach ($node->items as $item) {
+	  if ($item['in_circulation'] == LIBRARY_CIRCULATION && $item['library_status'] == LIBRARY_ITEM_AVAILABLE) {
+	    return $item;
+	  }
+	  else if ($item['in_circulation'] == LIBRARY_CIRCULATION && $item['library_status'] == LIBRARY_ITEM_UNAVAILABLE) {
+	    if (!empty($item['last_due_date'])) {
+		  $unavailable[$item['last_due_date']][] = $item;
+		}
+		else {
+	      $unavailable[time()][] = $item;
+		}
+	  }
+	  else {
+	    $reference[] = $item;
+	  }
+	}
+	if (!empty($reference)) {
+	  return $reference[0];
+	}
+	else if (!empty($unavailable)) {
+	  foreach ($unavailable as $un_item) {
+	    return $un_item[0];
+	  }
+	}
+  }
+  return FALSE;
 }
 
 /**

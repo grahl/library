@@ -79,12 +79,12 @@ function library_admin_settings() {
 
   $form['library_item_list_display'] = array(
     '#type' => 'fieldset',
-    '#title' => t('Library List and Search Results Columns'),
+    '#title' => t('Library Search Results Display'),
     '#description' => t('The columns chosen below will be added to the node fields that you have selected to display.'),
   );
   $form['library_item_list_display']['library_quantity_display'] = array(
     '#type' => 'checkbox',
-    '#title' => t('Quantity (if not using barcodes)'),
+    '#title' => t('Quantity'),
     '#default_value' => variable_get('library_quantity_display', 0),
   );
   $form['library_item_list_display']['library_list_status_display'] = array(

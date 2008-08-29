@@ -1,58 +1,101 @@
 <?php
 // $Id:
 
-function library_transaction_form(&$form_state, $item = NULL) {
-  $aid = arg(3);
+function library_transaction_form(&$form_state, $aid, $item = NULL) {
   $patron_id = arg(4);
-  $form = array();
-  global $user;
 
-  if ($aid) {
-    $action = library_get_action($aid);
-  }
   if ($patron_id) {
     $patron = node_load($patron_id);
   }
-  $action_list = array();
-  $aids = array();
-  if ($item) { 
-    if ($item->in_circulation == LIBRARY_REFERENCE_ONLY) {
-      $action_array = variable_get('library_links_display_reference', array());
-    }
-    else if ($item->library_status == LIBRARY_ITEM_AVAILABLE) {
-      $action_array = variable_get('library_links_display_available', array());
+  else if (!user_access('view patron content')) {
+    global $user;
+    $user_patron = patron_load_by_uid($user->uid);
+    if (is_object($user_patron)) {
+      $patron = $user_patron;
     }
     else {
-      $action_array = variable_get('library_links_display_unavailable', array());
-    }
-    foreach ($action_array as $aid) {
-      $aids[] = $aid;
+      drupal_set_message('You do not have sufficient permissions.', 'error');
+      drupal_goto('/');
     }
   }
-  foreach (library_actions($aids, $user) as $key => $value) {
-    $action_list[$key] = $value['name'];
+  
+  if ($aid) {
+    $action = library_get_action($aid);
+    if ($action->name) {
+      drupal_set_title($action->name);
+    }
+    else {
+      drupal_set_message('Invalid action.', 'error');
+      drupal_goto('');
+    }
   }
-  if (user_access('administer transactions')) {
-    $form['action_aid'] = array(
-      '#type' => 'select',
-      '#title' => t('Action'),
-      '#default_value' => ($action->aid ? $action->aid : ''),
-      '#options' => $action_list,
-      '#required' => TRUE
+  else {
+    drupal_set_message('No action was selected.', 'error');
+    drupal_goto('');
+  }
+
+  $form = array();
+
+  $form['action_aid'] = array(
+    '#type' => 'value',
+    '#value' => $action->aid,
+  );
+  $form['action_name'] = array(
+    '#type' => 'value',
+    '#value' => $action->name,
+  );
+  $form['action_status_change'] = array(
+    '#type' => 'value',
+    '#value' => $action->status_change,
+  );
+  
+  if ($item) {
+    $form['item_id'] = array(
+      '#type' => 'value',
+      '#value' => $item->id,
+    );
+    $form['item_id_set'] = array(
+      '#type' => 'value',
+      '#value' => $item->id,
+    );
+    $form['item_display'] = array(
+      '#type' => 'item',
+      '#title' => t('Item'),
+      '#value' => $item->title,
     );
   }
   else {
-    $form['action_aid'] = array(
-      '#type' => 'select',
-      '#title' => t('Action'),
-      '#default_value' => ($action->aid ? $action->aid : ''),
-      '#options' => array($action->aid => $action->name),
-      '#required' => TRUE,
-      '#disabled' => TRUE,
-    );
+    $form['item_id'] = library_autocomplete_input($item);
   }
-  $form['item_id'] = library_autocomplete_input($item);
-  if (user_access('view patron content')) {
+  
+  if ($patron) {
+    $form['patron_id'] = array(
+      '#type' => 'value',
+      '#value' => $patron->nid,
+    );
+    $form['patron_id_set'] = array(
+      '#type' => 'value',
+      '#value' => $patron->nid,
+    );
+    $form['patron_display'] = array(
+      '#type' => 'item',
+      '#value' => $patron->name_first .' '. $patron->name_last,
+      '#title' => t('Patron'),
+    );
+    if (user_access('view patron content') && $action->status_change == LIBRARY_ACTION_NO_CHANGE) {
+      $link = 'library-items/transaction/'. $action->aid;
+      if ($item) {
+        $link .= '/'. $item->id;
+      }
+      $form['patron_change_link'] = array(
+        '#type' => 'item',
+        '#value' => 'Change Patron',
+        '#prefix' => '<a href="'. url($link) .'">',
+        '#suffix' => '</a>',
+      );
+    }
+  }
+  else {
     $form['patron_id'] = array(
       '#type' => 'textfield',
       '#title' => t('Patron'),
@@ -61,28 +104,7 @@ function library_transaction_form(&$form_state, $item = NULL) {
       '#required' => TRUE
     );
   }
-  elseif ($patron) {
-    $form['patron_id'] = array(
-      '#type' => 'textfield',
-      '#title' => t('Patron'),
-      '#value' => ($patron ? $patron->title .' [nid:'. $patron->nid .']' : ''),
-      '#disabled' => TRUE,
-    );
-  }
-  else {
-    $user_patron = patron_load_by_uid($user->uid);
-    if (is_object($user_patron)) {
-      $form['patron_id'] = array(
-        '#type' => 'textfield',
-        '#title' => t('Patron'),
-        '#value' => ($user_patron ? $user_patron->title .' [nid:'. $user_patron->nid .']' : ''),
-        '#disabled' => TRUE,
-      );	
-    }
-    else {
-      form_set_error('', t('You do not have sufficient permission to perform a library transaction.'));
-    }
-  }
+
   $form['notes'] = array(
     '#type' => 'textarea',
     '#title' => t('Message'),
@@ -93,7 +115,7 @@ function library_transaction_form(&$form_state, $item = NULL) {
   );
   $form['submit'] = array(
     '#type' => 'submit',
-    '#value' => t('Save'),
+    '#value' => t($action->name),
   );
   $form['#validate'][] = 'library_transaction_form_validate';
   $form['#submit'][] = 'library_transaction_form_submit';
@@ -108,83 +130,87 @@ function library_transaction_form(&$form_state, $item = NULL) {
  */
 function library_transaction_form_validate($form, &$form_state) {
   $barcodes = variable_get('library_item_barcodes', LIBRARY_NO_BARCODES) == LIBRARY_BARCODES;
-  if ($form_state['values']['op'] == t('Save')) {
-    if ($form_state['values']['item_id']) {
-      if ($barcodes) {
-        preg_match('/^(?:\s*|(.*))?\[\s*title\s*:\s*(.+)\s*\]\s*?\[\s*id\s*:\s*(\d+)\s*\]$/', $form_state['values']['item_id'], $matches);
+
+  //Validate patron information
+  if ($form_state['values']['patron_id']) {
+    if ($form_state['values']['patron_id_set'] && is_numeric($form_state['values']['patron_id'])) {
+      $nid = $form_state['values']['patron_id'];
+      $n_patron = node_load($nid);
+      if (empty($n_patron)) {
+        form_set_error('patron_id', t('Invalid Patron ID.'));
       }
-      else {
-        preg_match('/^(?:\s*|(.*))?\[\s*id\s*:\s*(\d+)\s*\]$/', $form_state['values']['item_id'], $matches);
-      }
+    }
+    else {
+      preg_match('/^(?:\s*|(.*) )?\[\s*nid\s*:\s*(\d+)\s*\]$/', $form_state['values']['patron_id'], $matches);
       if (!empty($matches)) {
-        if ($barcodes) {
-          list($temp, $barcode, $title, $id) = $matches;
-        }
-        else {
-          list($temp, $title, $id) = $matches;
-        }
-        $item = library_load($id);
-        if (isset($item) && !empty($title) && (strcasecmp(rtrim(check_plain($title)), rtrim(check_plain($item->title))) != 0)) {
-          form_set_error('item_id', t('Library Item : Title mismatch. Please check your selection.'));
-        }
-        elseif (!empty($item) && !empty($title) && !empty($id)) {
-          $form_state['values']['item_id'] = $item->id;
-          $form_state['values']['item_name'] = $item->title;
-          $form_state['values']['nid'] = $item->nid;
-          $form_state['values']['barcode'] = $item->barcode;
-          $form_state['values']['node_type'] = $item->type;
-          if ($form_state['values']['action_aid']) {
-            $action = library_get_action($form_state['values']['action_aid']);
-            if (!empty($action)) {
-              if ($item->in_circulation == LIBRARY_REFERENCE_ONLY && $action->status_change <> LIBRARY_ACTION_NO_CHANGE) {
-                form_set_error('action_aid', t('This item is not in circulation.'));
-              } 
-              elseif ($item->library_status == LIBRARY_ITEM_AVAILABLE && $action->status_change == LIBRARY_ITEM_TYPE_AVAILABLE) {
-                form_set_error('action_aid', t('This item is already available.'));
-              }
-              elseif ($item->library_status == LIBRARY_ITEM_UNAVAILABLE &&  $action->status_change == LIBRARY_ITEM_TYPE_UNAVAILABLE) {
-                form_set_error('action_aid', t('This item is not currently available.'));
-              }
-              $form_state['values']['action_name'] = $action->name;
-              $form_state['values']['status_change'] = $action->status_change;
-            }
+        // explicit nid
+        list($temp, $title, $nid) = $matches;
+        if (!empty($title) && ($n_patron = node_load($nid))) {
+          if ($title != $n_patron->title) {
+            form_set_error('patron_id', t('Library Patron: Name mismatch. Please check your selection.'));
           }
         }
-        else {
-          form_set_error('item_id', t('You must specify a valid library item.'));
+      }
+    }
+    if (!empty($n_patron)) {
+      $form_state['values']['patron_email'] = $n_patron->email;
+      $form_state['values']['patron_uid'] = $n_patron->patron_uid;
+      $form_state['values']['patron_id'] = $n_patron->nid;
+      $form_state['values']['patron_name'] = $n_patron->title;
+      $form_state['values']['patron_name_last'] = $n_patron->name_last;
+      $form_state['values']['patron_name_first'] = $n_patron->name_first;
+    }
+    else {
+      form_set_error('patron_id', t('You must specify a library patron.'));
+    }
+  }
+  else {
+    form_set_error('patron_id', t('You must specify a library patron.'));
+  }
+  
+  if ($form_state['values']['item_id']) {
+    if ($form_state['values']['item_id_set'] && is_numeric($form_state['values']['item_id'])) {
+      $item = library_load($form_state['values']['item_id']);
+    }
+    else if ($barcodes) {
+      $item = library_get_item_by_barcode(check_plain($form_state['values']['item_id']));
+    }
+    else {
+      preg_match('/^(?:\s*|(.*))?\[\s*id\s*:\s*(\d+)\s*\]$/', $form_state['values']['item_id'], $matches);
+      if (!empty($matches)) {
+        list($temp, $title, $id) = $matches;
+        $item = library_load($id);
+        if ((isset($item) && !empty($title) && (strcasecmp(rtrim(check_plain($title)), rtrim(check_plain($item->title))) != 0)) || empty($item)) {
+          form_set_error('item_id', t('Library Item : Title mismatch. Please check your selection.'));
         }
       }
       else {
         form_set_error('item_id', t('You must specify a valid library item.'));
       }
     }
-    else {
-      form_set_error('item_id', t('You must specify a library item.'));
+    if (!empty($item)) {
+      $form_state['values']['item_id'] = $item->id;
+      $form_state['values']['item_name'] = $item->title;
+      $form_state['values']['nid'] = $item->nid;
+      $form_state['values']['barcode'] = $item->barcode;
+      $form_state['values']['node_type'] = $item->type;
     }
-    if ($form_state['values']['patron_id']) {
-      preg_match('/^(?:\s*|(.*) )?\[\s*nid\s*:\s*(\d+)\s*\]$/', $form_state['values']['patron_id'], $matches);
-      if (!empty($matches)) {
-        // explicit nid
-        list($temp, $title, $nid) = $matches;
-        if (!empty($title) && ($n = node_load($nid))) {
-          if ($title != $n->title) {
-            form_set_error('patron_id', t('Library Patron : Name mismatch. Please check your selection.'));
-          }
-          $form_state['values']['patron_email'] = $n->email;
-          $form_state['values']['patron_uid'] = $n->patron_uid;
-          $form_state['values']['patron_id'] = $nid;
-          $form_state['values']['patron_name'] = $title;
-          $form_state['values']['patron_name_last'] = $n->name_last;
-          $form_state['values']['patron_name_first'] = $n->name_first;
-        }
+    if ($form_state['values']['action_aid']) {
+      if ($item->in_circulation == LIBRARY_REFERENCE_ONLY && $action->status_change <> LIBRARY_ACTION_NO_CHANGE) {
+        form_set_error('action_aid', t('This item is not in circulation.'));
+      } 
+      elseif ($item->library_status == LIBRARY_ITEM_AVAILABLE && $action->status_change == LIBRARY_ITEM_TYPE_AVAILABLE) {
+        form_set_error('action_aid', t('This item is already available.'));
       }
-    }
-    else {
-      form_set_error('patron_id', t('You must specify a library patron.'));
-    }
+      elseif ($item->library_status == LIBRARY_ITEM_UNAVAILABLE &&  $action->status_change == LIBRARY_ITEM_TYPE_UNAVAILABLE) {
+        form_set_error('action_aid', t('This item is not currently available.'));
+      }
+      elseif ($item->library_status == LIBRARY_ITEM_UNAVAILABLE && $n_patron->nid <> $item->last_patron_id) {
+        form_set_error('patron_id', t('This item was made unavailable by a different patron.  Only that patron can perform actions on it.'));
+      }
+    }  
   }
 }
-
 
 /**
  * Handles transaction form submissions.
@@ -192,28 +218,27 @@ function library_transaction_form_validate($form, &$form_state) {
  * @see library_transaction_form()
  */
 function library_transaction_form_submit($form, &$form_state) {
-  if ($form_state['values']['op'] == t('Save')) {
-    $now = time();
-    $duedate = NULL;
-    $clean = library_clean_action_name($form_state['values']['action_name']);
-    if ($form_state['values']['status_change'] == LIBRARY_ACTION_TYPE_UNAVAILABLE) {
-      $type = $form_state['values']['node_type'];
-      $period = variable_get('library_period_for_'. $type .'_'. $clean, 0);
-      if ($period > 0) {
-        $duedate = library_get_due_date($now, $clean, $type);
-      }
-      $new_status = LIBRARY_ITEM_UNAVAILABLE;
+  $now = time();
+  $duedate = NULL;
+  $clean = library_clean_action_name($form_state['values']['action_name']);
+  if ($form_state['values']['action_status_change'] == LIBRARY_ACTION_TYPE_UNAVAILABLE) {
+    $type = $form_state['values']['node_type'];
+    $period = variable_get('library_period_for_'. $type .'_'. $clean, 0);
+    if ($period > 0) {
+      $duedate = library_get_due_date($now, $clean, $type);
     }
-    elseif ($form_state['values']['status_change'] == LIBRARY_ACTION_TYPE_AVAILABLE) {
-      $new_status = LIBRARY_ITEM_AVAILABLE;
-    }
-    db_query("INSERT {library_transactions} (nid, item_id, patron_id, action_aid, duedate, notes, created) VALUES (%d, %d, %d, %d, %d, '%s', %d)", $form_state['values']['nid'], $form_state['values']['item_id'], $form_state['values']['patron_id'], $form_state['values']['action_aid'], $duedate, check_plain($form_state['values']['notes']), $now);
-    if ($form_state['values']['status_change'] > LIBRARY_ACTION_NO_CHANGE) {
-      db_query("UPDATE {library} set library_status = %d WHERE id = %d", $new_status, $form_state['values']['item_id']);
-    }
-
-    drupal_set_message(t($form_state['values']['patron_name_first'] .' '. $form_state['values']['patron_name_last'] .' has performed a '. $form_state['values']['action_name'] .' on '. $form_state['values']['item_name']));
+    $new_status = LIBRARY_ITEM_UNAVAILABLE;
   }
+  elseif ($form_state['values']['action_status_change'] == LIBRARY_ACTION_TYPE_AVAILABLE) {
+    $new_status = LIBRARY_ITEM_AVAILABLE;   
+  }
+  db_query("INSERT {library_transactions} (nid, item_id, patron_id, action_aid, duedate, notes, created) VALUES (%d, %d, %d, %d, %d, '%s', %d)", $form_state['values']['nid'], $form_state['values']['item_id'], $form_state['values']['patron_id'], $form_state['values']['action_aid'], $duedate, check_plain($form_state['values']['notes']), $now);
+  if ($form_state['values']['action_status_change'] > LIBRARY_ACTION_NO_CHANGE) {
+    db_query("UPDATE {library} set library_status = %d WHERE id = %d", $new_status, $form_state['values']['item_id']);
+  }
+
+  drupal_set_message(t('The '. $form_state['values']['action_name'] .' was successful.'));
+
   $transaction_id = db_last_insert_id('library_transactions', 'tid');
   $context = array();
   $object = (object) $context;
