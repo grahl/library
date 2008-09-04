@@ -407,6 +407,9 @@ function _library_item_form($delta, $item = array()) {
       '#parents' => array('items', $delta, 'delete'),
     );
   }
+  if ($item['library_status'] == LIBRARY_ITEM_UNAVAILABLE) {
+    $form['in_circulation']['#disabled'] = TRUE;
+  }
 
   return $form;
 }
@@ -1250,7 +1253,10 @@ function library_cron() {
         }
 
         $params = $record;
-        drupal_mail('library', 'notify_overdue', $params['patron']['patron_email'], language_default(), $params);
+        if (count($record['items']) >= 1) {
+          drupal_mail('library', 'notify_overdue', $params['patron']['patron_email'], language_default(), $params);
+        }
+
         $num_emails++;
       }
       watchdog('library', '%number overdue email notifications sent successfully.', array('%number' => $num_emails));
