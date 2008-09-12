@@ -282,25 +282,20 @@ function library_transaction_view($tid) {
 function library_history($node) { 
   $duedate_enabled = library_duedates_enabled($node->type);  
   global $user;
-  $user_has_access = user_access('administer transactions') && patron_access('view', $node, $user);
+
   if ($node->type == 'patron') {
     $is_patron = TRUE;
   }
   else {
     $is_patron = FALSE;
   }
-  if ($is_patron && !$user_has_access) {
-    drupal_set_message(t('You do not have permission to view patron information.'));
-    $form_state['redirect'] = 'library-items';
-  }
+
   if (library_item_in_library($node) || $is_patron) {
     $header = array(t('Date'), t('Transaction'), t('Notes'));
     if ($duedate_enabled) {
       $header[] = t('Due Date');
     }
-    if ($user_has_access) {
-      $header[] = t('Actions');
-    }
+    $header[] = t('Actions');
     $rows = array();
 
     $transactions = library_get_transactions_by_node($node);
@@ -319,15 +314,14 @@ function library_history($node) {
           elseif ($duedate_enabled) {
             $duedate = '';
           }
-          if ($user_has_access) {
+          if (user_access('administer transactions')) {
             $detail_link = l('View Details', 'library-items/transaction/view/'. $transaction->tid);
-
-            if ($cur_item <> $last_item) {
-              $item = array('id' => $transaction->item_id, 'library_status' => $transaction->library_status, 'last_patron_id' => $transaction->patron_id, 'in_circulation' => $transaction->in_circulation);
-              $links = library_get_action_links($item);
-              if (!empty($links)) {
-                $action_link = ' | '. implode(" | ", $links);
-              }
+          }
+          if ($cur_item <> $last_item) {
+            $item = array('id' => $transaction->item_id, 'library_status' => $transaction->library_status, 'last_patron_id' => $transaction->patron_id, 'in_circulation' => $transaction->in_circulation);
+            $links = library_get_action_links($item);
+            if (!empty($links)) {
+              $action_link = implode(" | ", $links);
             }
           }
 		  
@@ -335,8 +329,17 @@ function library_history($node) {
           if (isset($duedate)) { 
             $temp_array[] = $duedate; 
           }
-          if (!empty($detail_link) || !empty($action_link)) {
-            $temp_array[] = $detail_link . $action_link;
+          if (!empty($detail_link) && !empty($action_link)) {
+            $temp_array[] = $detail_link .' | '. $action_link;
+          }
+          else if (!empty($action_link)) {
+            $temp_array[] = $action_link;
+          }
+          else if (!empty($detail_link)) {
+            $temp_array[] = $detail_link;
+          }
+          else {
+            $temp_array[] = '';
           }
           $rows[] = $temp_array;
           $last_item = $cur_item;
@@ -391,7 +394,7 @@ function library_overdue_items() {
           $item = array('library_status' => LIBRARY_ITEM_UNAVAILABLE, 'id' => $id, 'last_patron_id' => $patron_id, 'in_circulation' => $values['in_circulation']);
           $links = implode(" | ", library_get_action_links($item));
 
-          $rows[] = array($values['item_name'], $patron_name, format_date($values['due_date'], 'short'), l('Item Details', 'node/'. $values['nid']) .' | '. $links);
+          $rows[] = array($values['item_name'], $patron_name, format_date($values['due_date'], 'small'), l('Item Details', 'node/'. $values['nid']) .' | '. $links);
           $item = array();
         }
       }

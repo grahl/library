@@ -42,7 +42,6 @@ function patron_perm() {
     'edit any patron content',
     'delete patron content',
     'view patron content',
-    'view own patron content',
     'administer patrons');
 }
 
@@ -83,7 +82,7 @@ function patron_node_info() {
 function patron_access($op, $node, $account) {
   if ($op == 'view') {
     //Come back and change this to change patron_uid
-    if (user_access('view patron content', $account) || (user_access('view own patron content', $account) && ($account->uid == $node->uid))) {
+    if (user_access('view patron content', $account) || ((variable_get('patron_is_user', PATRON_NOT_USER) == PATRON_USER) && ($account->uid == $node->patron_uid))) {
       return TRUE;
     }
     else {
@@ -95,7 +94,7 @@ function patron_access($op, $node, $account) {
   }
 
   if ($op == 'update') {
-    if (user_access('edit any patron content', $account) || (user_access('edit own patron content', $account) && ($account->uid == $node->uid))) {
+    if (user_access('edit any patron content', $account) || (variable_get('patron_is_user', PATRON_NOT_USER) == PATRON_USER && user_access('edit own patron content', $account) && ($account->uid == $node->patron_uid))) {
       return TRUE;
     }
   }
@@ -468,7 +467,7 @@ function patron_admin_settings() {
   if (variable_get('patron_use_barcodes', PATRON_NO_BARCODES) == PATRON_NO_BARCODES) {
     $form['user_settings']['patron_autocreate'] = array(
       '#type' => 'checkbox',
-      '#title' => t('Autocreate Library Patron on User Registration'),
+      '#title' => t('Autocreate Library Patron on User Registration and Delete on User Deletion'),
       '#default_value' => variable_get('patron_autocreate', 0),
       '#return_value' => 1,
       '#description' => t('You must associate library patrons with drupal users first.'),
@@ -517,7 +516,9 @@ function patron_user($op, &$edit, &$user, $category = NULL) {
         break;
       case 'view':
         $patron = patron_load_by_uid($user->uid);
-        if (variable_get('patron_is_user', PATRON_NOT_USER) == PATRON_USER && !empty($patron) && node_access('view', 'patron')) {
+        $cur_user = $GLOBALS['user'];
+
+        if (variable_get('patron_is_user', PATRON_NOT_USER) == PATRON_USER && !empty($patron) && (node_access('view', 'patron') || $cur_user->uid == $user->uid)) {
           $user->content['patron_name'] = array(
             '#type' => 'user_profile_item',
             '#title' => 'Patron Name',
@@ -536,6 +537,12 @@ function patron_user($op, &$edit, &$user, $category = NULL) {
           return patron_create_patron($edit, $user);
         }
         break;
+      case 'delete':
+        //$patron = patron_load_by_uid($user->uid);
+        //if (variable_get('patron_autocreate', 0) == 1 && !empty($patron) && is_numeric($patron->nid)) {
+          //node_delete($patron->nid);
+        //}
+        break;
     }
   }
 }
@@ -548,7 +555,7 @@ function patron_load_by_uid($uid) {
       return $node;
     }
   }
-  return '<p>This user is not a library patron.</p>';
+  return '';
 }
 
 function patron_register_form() {

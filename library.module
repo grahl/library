@@ -76,6 +76,7 @@ function library_perm() {
     'administer library', 
     'administer transactions',
     'view library history',
+    'view own library history',
   );
   foreach (library_actions() as $aid => $action) {
     $permissions[] = 'submit library '. $action['name'];
@@ -105,6 +106,20 @@ function library_action_access($aid) {
     $action = library_get_action($aid);
     if ($action->name) {
       return user_access('submit library '. $action->name);
+    }
+  }
+  return FALSE;
+}
+
+function library_history_access($node) {
+  if (user_access('view library history')) {
+    return TRUE;
+  }
+  else if (user_access('view own library history')) {
+    global $user;
+    $user_patron = patron_load_by_uid($user->uid);
+    if (is_object($user_patron) && $user_patron->nid == $node->nid) {
+      return TRUE;
     }
   }
   return FALSE;
@@ -287,7 +302,7 @@ function library_form_alter(&$form, $form_state, $form_id) {
 
     $form['#validate'][] = 'node_search_validate';
   }
-  else if (module_exists('content') && $form_id == '_content_admin_field') {
+  else if (module_exists('content') && $form_id == 'content_field_edit_form') {
     $node_type = $form['type_name']['#value'];
     if (variable_get('library_'. $node_type, LIBRARY_ITEM_NOT_IN_LIBRARY) == LIBRARY_ITEM_IN_LIBRARY) {
       $newform = array();
@@ -462,7 +477,8 @@ function library_menu() {
     'title' => 'History',
     'page callback' => 'library_history',
     'page arguments' => array(1),
-    'access arguments' => array('view library history'),
+    'access callback' => 'library_history_access',
+    'access arguments' => array(1),
     'type' => MENU_LOCAL_TASK,
     'weight' => 2,
     'file' => 'library.pages.inc',
@@ -494,7 +510,7 @@ function library_menu() {
   $items['library-items/overdue/email'] = array(
     'title' => 'Email patrons with overdue items',
     'page callback' => 'library_notify_overdue',
-    'access arguments' => array('administer library'),
+    'access arguments' => array('administer transactions'),
     'type' => MENU_CALLBACK,
     'file' => 'library.admin.inc',
   );
@@ -1399,6 +1415,16 @@ function library_get_table_row($node, $var) {
   }
   $rows[] = $row;
   return $rows;
+}
+
+/**
+ * Implementation of hook_views_api().
+ */
+function library_views_api() {
+  return array(
+    'api' => 2,
+    'path' => drupal_get_path('module', 'library') . '/includes/views',
+  );
 }
 
 /**
