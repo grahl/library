@@ -221,23 +221,6 @@ function library_send_email_action(&$object, $context) {
   }
 }
 
-function _library_mail_text($key, $language = NULL, $variables = array()) {
-  $langcode = isset($language) ? $language->language : NULL;
-  if ($admin_setting = variable_get('library_mail_'. $key, FALSE)) {
-    // An admin setting overrides the default string.
-    return strtr($admin_setting, $variables);
-  }
-  else {
-    // No override, return default string.
-    switch ($key) {
-      case 'notify_overdue_subject':
-        return t('Overdue Items for !patronname at !site', $variables, $langcode);
-      case 'notify_overdue_body':
-        return t("!patronname,\n\nThank you for using !site. You have one or more items that are overdue. You can find a list of overdue items below. \n\n!items\n\nPlease return these items as soon as possible. \n\nThank you!", $variables, $langcode);
-    }
-  }
-}
-
 function library_mail_tokens($params, $language) {
   $items = '';
   foreach ($params['items'] as $id => $values) {

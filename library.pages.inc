@@ -238,18 +238,19 @@ function library_transaction_form_submit($form, &$form_state) {
   }
 
   drupal_set_message(t('The '. $form_state['values']['action_name'] .' was successful.'));
-
-  $transaction_id = db_last_insert_id('library_transactions', 'tid');
-  $context = array();
-  $object = (object) $context;
-  $context['item'] = array(
-    'id' => $form_state['values']['item_id'], 'nid' => $form_state['values']['nid'], 'title' => $form_state['values']['item_name'], 'barcode' => $form_state['values']['barcode'], 'node_type' => $form_state['values']['node_type']
-  );
-  $context['transaction'] = array('id' => $transaction_id, 'action_name' => $form_state['values']['action_name'], 'aid' => $form_state['values']['action_aid'], 'notes' => check_plain($form_state['values']['notes']), 'duedate' => $duedate, 'created' => $now);
-  $context['patron'] = array('nid' => $form_state['values']['patron_id'], 'name' => $form_state['values']['patron_name_first'] .' '. $form_state['values']['patron_name_last'], 'email' => $form_state['values']['patron_email'], 'uid' => $form_state['values']['patron_uid']);
-  $actions = _library_get_hook_aids('library', 'after_'. $clean);
-  if (!empty($actions)) {
-    actions_do($actions, $object, $context);
+  if (module_exists('trigger')) {
+    $transaction_id = db_last_insert_id('library_transactions', 'tid');
+    $context = array();
+    $object = (object) $context;
+    $context['item'] = array(
+      'id' => $form_state['values']['item_id'], 'nid' => $form_state['values']['nid'], 'title' => $form_state['values']['item_name'], 'barcode' => $form_state['values']['barcode'], 'node_type' => $form_state['values']['node_type']
+    );
+    $context['transaction'] = array('id' => $transaction_id, 'action_name' => $form_state['values']['action_name'], 'aid' => $form_state['values']['action_aid'], 'notes' => check_plain($form_state['values']['notes']), 'duedate' => $duedate, 'created' => $now);
+    $context['patron'] = array('nid' => $form_state['values']['patron_id'], 'name' => $form_state['values']['patron_name_first'] .' '. $form_state['values']['patron_name_last'], 'email' => $form_state['values']['patron_email'], 'uid' => $form_state['values']['patron_uid']);
+    $actions = _library_get_hook_aids('library', 'after_'. $clean);
+    if (!empty($actions)) {
+      actions_do($actions, $object, $context);
+    }
   }
   $form_state['redirect'] = 'node/'. $form_state['values']['nid'];
   return;
