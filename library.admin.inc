@@ -175,7 +175,7 @@ function library_admin_settings_overdue() {
   $form['library_send_automatic_email'] = array(
     '#type' => 'checkbox',
     '#title' => t('Send Automatic Overdue Reminder Emails'),
-    '#default_value' => variable_get('library_automatic_emails', 0),
+    '#default_value' => variable_get('library_send_automatic_email', 0),
     '#description' => t('If this option is checked and due dates are enabled, Drupal will send a reminder email to each patron with overdue items the day after an item becomes overdue.'),
     '#return_value' => 1,
   );
