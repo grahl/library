@@ -1321,7 +1321,7 @@ function library_get_table_header() {
   $results = array();
   $display_cat_var = FALSE;
   foreach (variable_get('library_taxonomy_display', array()) as $key => $vocab) {
-    if ($vocab == 1) {
+    if ($vocab) {
       $display_cat_var = TRUE;
     }
   }
@@ -1379,7 +1379,7 @@ function library_get_table_row($node, $var) {
     $categories = array(); 
 
     foreach (variable_get('library_taxonomy_display', array()) as $key => $vocab) {
-      if ($vocab == 1) {
+      if ($vocab) {
         $terms =  taxonomy_node_get_terms_by_vocabulary($node, $key);
         $cat_term = array();
         foreach ($terms as $term) {
