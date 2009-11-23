@@ -115,7 +115,7 @@ function library_history_access($node) {
   if (user_access('view library history')) {
     return TRUE;
   }
-  else if (user_access('view own library history')) {
+  elseif (user_access('view own library history')) {
     global $user;
     $user_patron = patron_load_by_uid($user->uid);
     if (is_object($user_patron) && $user_patron->nid == $node->nid) {
@@ -164,7 +164,7 @@ function library_form_alter(&$form, $form_state, $form_id) {
       '#description' => t('Library items will appear in library views.')
     );
   }
-  else if (isset($form['type']) && isset($form['#node']) && $form['type']['#value'] .'_node_form' == $form_id) {
+  elseif (isset($form['type']) && isset($form['#node']) && $form['type']['#value'] .'_node_form' == $form_id) {
     $node = $form['#node'];
     $node_type = $form['type']['#value'];
     if (variable_get('library_'. $node_type, LIBRARY_ITEM_NOT_IN_LIBRARY) == LIBRARY_ITEM_IN_LIBRARY) {
@@ -237,7 +237,7 @@ function library_form_alter(&$form, $form_state, $form_id) {
       $form['#submit'][] = 'library_node_form_submit';
     }
   }
-  else if ($form_id == 'search_form' && $form['module']['#value'] == 'library' && user_access('use advanced search')) {
+  elseif ($form_id == 'search_form' && $form['module']['#value'] == 'library' && user_access('use advanced search')) {
     // Keyword boxes:
     $form['advanced'] = array(
       '#type' => 'fieldset',
@@ -302,7 +302,7 @@ function library_form_alter(&$form, $form_state, $form_id) {
 
     $form['#validate'][] = 'node_search_validate';
   }
-  else if (module_exists('content') && $form_id == 'content_field_edit_form') {
+  elseif (module_exists('content') && $form_id == 'content_field_edit_form') {
     $node_type = $form['type_name']['#value'];
     if (variable_get('library_'. $node_type, LIBRARY_ITEM_NOT_IN_LIBRARY) == LIBRARY_ITEM_IN_LIBRARY) {
       $newform = array();
@@ -322,9 +322,9 @@ function library_form_alter(&$form, $form_state, $form_id) {
       $form['#submit'][] = 'library_field_submit';
     }
   }
-  else if ($form_id == '') {
+  elseif ($form_id == '') {
   }
-  else if ($form_id == 'search_block_form' && variable_get('library_search_block', 0) == 1) {
+  elseif ($form_id == 'search_block_form' && variable_get('library_search_block', 0) == 1) {
     $form['#submit'][] = 'library_search_box_form_submit';
   }
 }
@@ -802,17 +802,14 @@ function library_nodeapi(&$node, $op, $teaser = NULL, $page = NULL) {
         $result = library_load_items($node);
         return $result;
         break;
-	  
       case 'validate':
       case 'submit':
         $node = library_validate_items($node);
         break;
-	  
       case 'insert':
       case 'update':
         library_update_items($node);
         break;
-
       case 'delete':
         db_query('DELETE FROM {library} WHERE nid = %d', $node->nid);
         break;
@@ -878,7 +875,7 @@ function library_update_items($node) {
         db_query('DELETE FROM {library} WHERE id = %d', $item['id']);
         unset($node->items[$key]);
       }
-      else if (empty($item['id'])) {
+      elseif (empty($item['id'])) {
         db_query("INSERT INTO {library} (nid, barcode, in_circulation, library_status, notes, created) VALUES (%d, '%s', %d, %d, '%s', %d)", $node->nid, check_plain($item['barcode'] .''), $item['in_circulation'], LIBRARY_ITEM_AVAILABLE, $item['notes'], time());
         $node->items[$row]['id'] = db_last_insert_id('library', 'id');
       }
@@ -921,7 +918,7 @@ function library_item_in_library($node = NULL, $item_id = NULL) {
   if ($node && variable_get('library_'. $node->type, LIBRARY_ITEM_NOT_IN_LIBRARY) == LIBRARY_ITEM_IN_LIBRARY) {
     return TRUE;
   }
-  else if ($item_id && db_result(db_query("SELECT COUNT(*) FROM {library} WHERE id = %d", $item_id))) {
+  elseif ($item_id && db_result(db_query("SELECT COUNT(*) FROM {library} WHERE id = %d", $item_id))) {
     return TRUE;
   }
   else {
@@ -1092,7 +1089,7 @@ function library_get_last_transaction_by_item($item, $type = NULL) {
         return $transaction;
       }
       else {
-	 //Only return transactions that changed the status of the item
+        //Only return transactions that changed the status of the item
         switch ($transaction->status_change) {
           case LIBRARY_ACTION_TYPE_UNAVAILABLE:
             return $transaction;
@@ -1115,7 +1112,7 @@ function library_get_last_transaction_by_item($item, $type = NULL) {
  */ 
 function library_actions($actions = NULL, $account = NULL) {
   if (is_array($actions) && !empty($actions)) {
-    $result = db_query("SELECT name, aid, status_change from {library_actions} WHERE aid IN(%s) ORDER BY name, aid, status_change", implode(', ', $actions));
+    $result = db_query("SELECT name, aid, status_change from {library_actions} WHERE aid IN('%s') ORDER BY name, aid, status_change", implode(', ', $actions));
   }
   elseif (is_array($actions) && empty($actions)) {
     $result = NULL;
@@ -1164,7 +1161,7 @@ function library_get_action_links($item) {
       $aids[] = $aid;
     }
   }
-  else if ($item['library_status'] == LIBRARY_ITEM_AVAILABLE) {
+  elseif ($item['library_status'] == LIBRARY_ITEM_AVAILABLE) {
     $available_actions = variable_get('library_links_display_available', array());
     foreach ($available_actions as $aid) {
       $aids[] = $aid;
@@ -1240,7 +1237,7 @@ function library_get_item_types($op = 'types') {
       if ($op == 'types') {
         $item_types[] = $type;
       }
-      else if ($op == 'names') {
+      elseif ($op == 'names') {
         $item_types[$type] = $info->name;
       }
     }
@@ -1459,31 +1456,31 @@ function library_get_quantity($node) {
 function library_get_status_item($node) {
   if ($node->items) {
     $unavailable = array();
-	$reference = array();
+    $reference = array();
     foreach ($node->items as $item) {
-	  if ($item['in_circulation'] == LIBRARY_CIRCULATION && $item['library_status'] == LIBRARY_ITEM_AVAILABLE) {
-	    return $item;
-	  }
-	  else if ($item['in_circulation'] == LIBRARY_CIRCULATION && $item['library_status'] == LIBRARY_ITEM_UNAVAILABLE) {
-	    if (!empty($item['last_due_date'])) {
-		  $unavailable[$item['last_due_date']][] = $item;
-		}
-		else {
-	      $unavailable[time()][] = $item;
-		}
-	  }
-	  else {
-	    $reference[] = $item;
-	  }
-	}
-	if (!empty($reference)) {
-	  return $reference[0];
-	}
-	else if (!empty($unavailable)) {
-	  foreach ($unavailable as $un_item) {
-	    return $un_item[0];
-	  }
-	}
+      if ($item['in_circulation'] == LIBRARY_CIRCULATION && $item['library_status'] == LIBRARY_ITEM_AVAILABLE) {
+        return $item;
+      }
+      elseif ($item['in_circulation'] == LIBRARY_CIRCULATION && $item['library_status'] == LIBRARY_ITEM_UNAVAILABLE) {
+        if (!empty($item['last_due_date'])) {
+          $unavailable[$item['last_due_date']][] = $item;
+        }
+        else {
+          $unavailable[time()][] = $item;
+        }
+      }
+      else {
+        $reference[] = $item;
+      }
+    }
+    if (!empty($reference)) {
+      return $reference[0];
+    }
+    elseif (!empty($unavailable)) {
+      foreach ($unavailable as $un_item) {
+        return $un_item[0];
+      }
+    }
   }
   return FALSE;
 }

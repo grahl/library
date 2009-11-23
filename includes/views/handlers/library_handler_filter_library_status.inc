@@ -1,5 +1,6 @@
 <?php
-//$Id
+// $Id$
+
 class library_handler_filter_library_status extends views_handler_filter_boolean_operator {
   function construct() {
     parent::construct();

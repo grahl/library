@@ -374,7 +374,7 @@ function patron_get_patrons($nid = NULL) {
   if (!$nid) {
     $result = db_query("SELECT * FROM {node} n, {library_patrons} lp WHERE lp.nid = n.nid AND n.type = 'patron' AND lp.disabled = %d ORDER BY lp.name_last, lp.name_first", PATRON_ENABLED);
   }
-  else if (is_numeric($nid)) {
+  elseif (is_numeric($nid)) {
     $result = db_query_range("SELECT * FROM {node} n, {library_patrons} lp WHERE lp.nid = n.nid AND n.type = 'patron' AND n.nid = %d ORDER BY lp.name_last, lp.name_first", $nid, 0, 1);
   }
   else {
@@ -434,11 +434,11 @@ function patron_email_js() {
         // Build the new form.
         $form_state = array('submitted' => FALSE);
         $form_build_id = $_POST['form_build_id'];
-	  
+        
         // We retreive the cached form, change the value, and resave.
         $form = form_get_cache($form_build_id, $form_state);
         form_set_value($form['required_for_library']['patron_uid'], $patron->uid, $form_state);
-	
+        
         $output = 'Matching Drupal user found. Username: '. $patron->name;
         print drupal_json(array('data' => $output));
       }
@@ -513,7 +513,7 @@ function patron_user($op, &$edit, &$user, $category = NULL) {
         $user->patron = patron_load_by_uid($user->uid);
         break;
       case 'after_update':
-	 //If the user email has changed, update the patron email to match
+        //If the user email has changed, update the patron email to match
         $node = patron_load_by_uid($user->uid);
         if (!empty($node) && $node->email != $user->mail) {
           $node->email = $user->mail;

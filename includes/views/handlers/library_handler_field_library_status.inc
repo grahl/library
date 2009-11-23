@@ -1,6 +1,5 @@
 <?php
-//$Id
-
+// $Id$
 
 /**
  * Display a node's status in the library as a whole

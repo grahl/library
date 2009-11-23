@@ -1,5 +1,11 @@
 <?php
-// $Id:
+// $Id$
+
+/**
+ * @file
+ * Functions for generating page displays related to the patron module
+ */
+
 
 function patron_list_patrons() {
   $patrons = patron_get_patrons('all');

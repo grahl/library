@@ -1,5 +1,10 @@
 <?php
-// $Id:
+// $Id$
+
+/**
+ * @file
+ * Functions for generating page displays related to the library module
+ */
 
 function library_transaction_form(&$form_state, $aid, $item = NULL) {
   $patron_id = arg(4);
@@ -7,7 +12,7 @@ function library_transaction_form(&$form_state, $aid, $item = NULL) {
   if ($patron_id) {
     $patron = node_load($patron_id);
   }
-  else if (!user_access('view patron content')) {
+  elseif (!user_access('view patron content')) {
     global $user;
     $user_patron = patron_load_by_uid($user->uid);
     if (is_object($user_patron)) {
@@ -172,7 +177,7 @@ function library_transaction_form_validate($form, &$form_state) {
     if ($form_state['values']['item_id_set'] && is_numeric($form_state['values']['item_id'])) {
       $item = library_load($form_state['values']['item_id']);
     }
-    else if ($barcodes) {
+    elseif ($barcodes) {
       $item = library_get_item_by_barcode(check_plain($form_state['values']['item_id']));
     }
     else {
@@ -263,7 +268,6 @@ function library_transaction_view($tid) {
     $list[] = t("Item: ". l($transaction->item_name, 'node/'. $transaction->nid));
     $list[] = t("Action: @action", array('@action' => $transaction->action_name));
     $list[] = t("Patron: ". l($transaction->name_first .' '. $transaction->name_last, 'node/'. $transaction->patron_id));
-	
     if (!empty($transaction->duedate)) {
       $list[] = t('Due Date: @due_date', array('@due_date' => format_date($transaction->duedate, 'custom', 'M j, Y')));
     }
@@ -324,8 +328,7 @@ function library_history($node) {
             if (!empty($links)) {
               $action_link = implode(" | ", $links);
             }
-          }
-		  
+          } 
           $temp_array = array($created, $transaction->action_name, $transaction->notes);
           if (isset($duedate)) { 
             $temp_array[] = $duedate; 
@@ -333,10 +336,10 @@ function library_history($node) {
           if (!empty($detail_link) && !empty($action_link)) {
             $temp_array[] = $detail_link .' | '. $action_link;
           }
-          else if (!empty($action_link)) {
+          elseif (!empty($action_link)) {
             $temp_array[] = $action_link;
           }
-          else if (!empty($detail_link)) {
+          elseif (!empty($detail_link)) {
             $temp_array[] = $detail_link;
           }
           else {

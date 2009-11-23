@@ -2,6 +2,11 @@
 // $Id$
 
 /**
+ * @file
+ * Hooks into core Drupal actions module
+ */
+
+/**
  * Implementation of hook_hook_info()
  */
 function library_hook_info() {

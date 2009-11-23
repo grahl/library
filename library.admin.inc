@@ -1,5 +1,10 @@
 <?php
-// $Id:
+// $Id$
+
+/**
+ * @file
+ * Administrative settings for the library module
+ */
 
 /**
  * Menu callback: Edit Library Settings.
@@ -294,6 +299,7 @@ function library_admin_action() {
     );
     $form['submit'] = array(
       '#type' => 'submit',
+
       '#value' => t('Add action'),
     );
     $form['#submit'][] = 'library_admin_action_submit';
@@ -316,7 +322,7 @@ function library_admin_action_validate($form, &$form_state) {
         form_set_error('name', t('The action name %name already exists. Please choose another action name.', array('%name' => $form_state['values']['name'])));
       }
     }
-    else if ($form_state['values']['op'] == t('Add action')) {
+    elseif ($form_state['values']['op'] == t('Add action')) {
       if (db_result(db_query("SELECT COUNT(*) FROM {library_actions} WHERE name = '%s'", $form_state['values']['name']))) {
         form_set_error('name', t('The action name %name already exists. Please choose another action name.', array('%name' => $form_state['values']['name'])));
       }
@@ -339,7 +345,7 @@ function library_admin_action_submit($form, &$form_state) {
     db_query("UPDATE {library_actions} SET name = '%s', status_change = %d WHERE aid = %d", check_plain($form_state['values']['name']), $form_state['values']['status_change'], $form_state['values']['aid']);
     drupal_set_message(t('The action has been renamed.'));
   }
-  else if ($form_state['values']['op'] == t('Delete action')) {
+  elseif ($form_state['values']['op'] == t('Delete action')) {
     db_query('DELETE FROM {library_actions} WHERE aid = %d', $form_state['values']['aid']);
     db_query('DELETE FROM {library_transactions} WHERE action_aid = %d', $form_state['values']['aid']);
     $available_display = variable_get('library_links_display_available', array());
@@ -362,7 +368,7 @@ function library_admin_action_submit($form, &$form_state) {
     }
     drupal_set_message(t('The action has been deleted.'));
   }
-  else if ($form_state['values']['op'] == t('Add action')) {
+  elseif ($form_state['values']['op'] == t('Add action')) {
     db_query("INSERT INTO {library_actions} (name, status_change) VALUES ('%s', %d)", check_plain($form_state['values']['name']), $form_state['values']['status_change']);
     drupal_set_message(t('The action has been added.'));
   }

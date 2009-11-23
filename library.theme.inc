@@ -1,5 +1,11 @@
 <?php
-// $Id:
+// $Id$
+
+/**
+ * @file
+ * Theming for the library module
+ */
+
 
 /**
  * Menu callback: Library Actions

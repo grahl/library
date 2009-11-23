@@ -17,7 +17,7 @@ function library_schema() {
         'type' => 'serial',
         'unsigned' => TRUE,
         'not null' => TRUE),
-        'barcode' => array(
+      'barcode' => array(
         'description' => t('The barcode/identifier for this item.'),
         'type' => 'varchar',
         'length' => 60,

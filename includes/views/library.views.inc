@@ -1,5 +1,10 @@
 <?php
-//$Id
+// $Id$
+
+/**
+ * @file
+ * Hooks into views module
+ */
 
 /**
  * Implementation of hook_views_handlers().

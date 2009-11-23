@@ -1,5 +1,6 @@
 <?php
-//$Id
+// $Id$
+
 /**
  * Display the library quantity
  */
