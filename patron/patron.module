@@ -338,9 +338,15 @@ function patron_validate(&$node) {
 */
 function patron_autocomplete($string) {
   $matches = array();
-  $result = db_query_range("SELECT n.nid, n.title FROM {node} n, {library_patrons} lp WHERE lp.nid = n.nid AND n.type = 'patron' AND lp.disabled = %d AND LOWER(n.title) LIKE LOWER('%s%%')", PATRON_ENABLED, check_plain($string), 0, 10);
+  $result = db_query_range("SELECT n.nid, lp.barcode, n.title FROM {node} n, {library_patrons} lp WHERE lp.nid = n.nid AND n.type = 'patron' AND lp.disabled = %d AND (LOWER(n.title) LIKE LOWER('%%%s%%') OR lp.barcode = '%s')", PATRON_ENABLED, check_plain($string), check_plain($string), 0, 10);
+  $barcodes = variable_get('patron_use_barcodes', PATRON_NO_BARCODES);
   while ($patron = db_fetch_object($result)) {
-    $matches[$patron->title .' [nid:'. $patron->nid .']'] = check_plain($patron->title);
+    if ($barcodes == PATRON_BARCODES && !empty($patron->barcode)) {
+      $matches[$patron->title .' [nid:'. $patron->nid .']'] = check_plain($patron->barcode) .' ('. check_plain($patron->title) .')';
+    }
+    else {
+      $matches[$patron->title .' [nid:'. $patron->nid .']'] = check_plain($patron->title);
+    }
   }
   print drupal_to_js($matches);
   exit();
