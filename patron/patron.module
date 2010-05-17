@@ -317,7 +317,7 @@ function patron_validate(&$node) {
     }
   }
   //Validate identifier
-  $dup_result = db_result(db_query_range("SELECT nid FROM {node} WHERE title= '%s' AND nid <> %d", $node->title, $node->nid, 0, 1));
+  $dup_result = db_result(db_query_range("SELECT nid FROM {node} WHERE title= '%s' AND nid <> %d AND type='patron'", $node->title, $node->nid, 0, 1));
   if ($dup_result) {
     form_set_error('title', t("A Patron with that identifier already exists. ". l('View existing entry.', 'node/'. $dup_result)));
   }
