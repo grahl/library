@@ -103,3 +103,8 @@ function patron_uninstall() {
   drupal_set_message(t('Library patron module successfully uninstalled'));
 }
 
+function patron_update_1() {
+  $ret = array();
+  $ret[] = update_sql("UPDATE {library_patrons} SET patron_uid = NULL WHERE patron_uid = 0");
+  return $ret;
+}

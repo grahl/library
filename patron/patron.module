@@ -120,14 +120,24 @@ function patron_db_rewrite_sql($query, $primary_table, $primary_field, $args) {
  * Implemenation of hook_insert().
  */
 function patron_insert($node) {
-  db_query("INSERT INTO {library_patrons} (nid, name_last, name_first, email, patron_uid, barcode, disabled) VALUES (%d, '%s', '%s', '%s', %d, '%s', %d)", $node->nid, $node->name_last, $node->name_first, $node->email, $node->patron_uid, $node->barcode, $node->disabled);
+  if (empty($node->patron_uid)) {
+    db_query("INSERT INTO {library_patrons} (nid, name_last, name_first, email, patron_uid, barcode, disabled) VALUES (%d, '%s', '%s', '%s', NULL, '%s', %d)", $node->nid, $node->name_last, $node->name_first, $node->email, $node->barcode, $node->disabled);
+  }
+  else {
+    db_query("INSERT INTO {library_patrons} (nid, name_last, name_first, email, patron_uid, barcode, disabled) VALUES (%d, '%s', '%s', '%s', %d, '%s', %d)", $node->nid, $node->name_last, $node->name_first, $node->email, $node->patron_uid, $node->barcode, $node->disabled);
+  }
 }
 
 /**
  * Implemenation of hook_update().
  */
 function patron_update($node) {
-  db_query("UPDATE {library_patrons} SET name_last = '%s', name_first = '%s', email = '%s', patron_uid = %d, barcode = '%s', disabled = %d WHERE nid = %d", $node->name_last, $node->name_first, $node->email, $node->patron_uid, $node->barcode, $node->disabled, $node->nid); 
+  if (empty($node->patron_uid)) {
+    db_query("UPDATE {library_patrons} SET name_last = '%s', name_first = '%s', email = '%s', patron_uid = NULL, barcode = '%s', disabled = %d WHERE nid = %d", $node->name_last, $node->name_first, $node->email, $node->barcode, $node->disabled, $node->nid); 
+  }
+  else {
+    db_query("UPDATE {library_patrons} SET name_last = '%s', name_first = '%s', email = '%s', patron_uid = %d, barcode = '%s', disabled = %d WHERE nid = %d", $node->name_last, $node->name_first, $node->email, $node->patron_uid, $node->barcode, $node->disabled, $node->nid); 
+  }
 }
 
 /**
@@ -187,7 +197,7 @@ function patron_nodeapi(&$node, $op, $teaser = NULL, $page = NULL) {
             $node->uid = $patron_uid;   
           }
           else {
-            $node->patron_uid = '';
+            $node->patron_uid = NULL;
           }
         } 
         break;
@@ -210,7 +220,7 @@ function patron_load($node) {
 function patron_form(&$node) {
   $type = node_get_types('type', $node);
   $patrons_are_users = variable_get('patron_is_user', PATRON_NOT_USER) == PATRON_USER;
-  $patron_uid = '';
+  $patron_uid = NULL;
   if ($patrons_are_users && !empty($node->email)) {
     $exists = db_result(db_query_range("SELECT uid from {users} where mail= '%s'", $node->email, 0, 1));
     if ($exists) {
