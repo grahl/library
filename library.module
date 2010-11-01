@@ -1253,7 +1253,7 @@ function library_cron() {
   $last_update = variable_get('library_cron', 0);
   $next_update = $last_update + (24 * 60 * 60);
   
-  if (time() > $next_update && library_duedates_enabled()) {
+  if (time() > $next_update && library_duedates_enabled() && variable_get('library_send_automatic_email', 0) == 1) {
     $records = library_get_overdue_items();
     if (!empty($records)) {
       $num_emails = 0;
