@@ -7,21 +7,18 @@
  */
 
 function library_transaction_form(&$form_state, $aid, $item = NULL) {
-  $patron_id = arg(4);
+  $patron_uid = arg(4);
+  global $user;
+  $librarian = user_access('access user profiles', $user) && user_access('administer transactions', $user);
 
-  if ($patron_id) {
-    $patron = node_load($patron_id);
+  if ($patron_uid && $patron_uid == $user->uid) {
+    $patron = $user;
   }
-  elseif (!user_access('view patron content')) {
-    global $user;
-    $user_patron = patron_load_by_uid($user->uid);
-    if (is_object($user_patron)) {
-      $patron = $user_patron;
-    }
-    else {
-      drupal_set_message('You do not have sufficient permissions.', 'error');
-      drupal_goto('/');
-    }
+  elseif ($patron_uid && is_numeric($patron_uid) && $librarian) {
+    $patron = user_load($patron_uid);
+  }
+  elseif ($librarian == FALSE) {
+    $patron = $user;
   }
   
   if ($aid) {
@@ -74,20 +71,20 @@ function library_transaction_form(&$form_state, $aid, $item = NULL) {
   }
   
   if ($patron) {
-    $form['patron_id'] = array(
+    $form['patron_uid'] = array(
       '#type' => 'value',
-      '#value' => $patron->nid,
+      '#value' => $patron->uid,
     );
-    $form['patron_id_set'] = array(
+    $form['patron_uid_set'] = array(
       '#type' => 'value',
-      '#value' => $patron->nid,
+      '#value' => $patron->uid,
     );
     $form['patron_display'] = array(
       '#type' => 'item',
-      '#value' => $patron->name_first .' '. $patron->name_last,
+      '#value' => $patron->name,
       '#title' => t('Patron'),
     );
-    if (user_access('view patron content') && $action->status_change == LIBRARY_ACTION_NO_CHANGE) {
+    if ($librarian && $action->status_change == LIBRARY_ACTION_NO_CHANGE) {
       $link = 'library-items/transaction/'. $action->aid;
       if ($item) {
         $link .= '/'. $item->id;
@@ -100,11 +97,19 @@ function library_transaction_form(&$form_state, $aid, $item = NULL) {
       );
     }
   }
-  else {
-    $form['patron_id'] = array(
+  elseif (variable_get('library_disable_patron_autocomplete', 0) == 1){
+    $form['patron_uid'] = array(
       '#type' => 'textfield',
       '#title' => t('Patron'),
-      '#default_value' => ($patron ? $patron->title .' [nid:'. $patron->nid .']' : ''),
+      '#default_value' => '',
+      '#required' => TRUE
+    );    
+  }
+  else {
+    $form['patron_uid'] = array(
+      '#type' => 'textfield',
+      '#title' => t('Patron'),
+      '#default_value' => ($patron ? $patron->name .' [uid:'. $patron->uid .']' : ''),
       '#autocomplete_path' => 'patrons/autocomplete',
       '#required' => TRUE
     );
@@ -135,42 +140,44 @@ function library_transaction_form(&$form_state, $aid, $item = NULL) {
  */
 function library_transaction_form_validate($form, &$form_state) {
   $barcodes = variable_get('library_item_barcodes', LIBRARY_NO_BARCODES) == LIBRARY_BARCODES;
-
+  $autocomplete_disabled = variable_get('library_disable_patron_autocomplete', 0) == 1;
   //Validate patron information
-  if ($form_state['values']['patron_id']) {
-    if ($form_state['values']['patron_id_set'] && is_numeric($form_state['values']['patron_id'])) {
-      $nid = $form_state['values']['patron_id'];
-      $n_patron = node_load($nid);
-      if (empty($n_patron)) {
-        form_set_error('patron_id', t('Invalid Patron ID.'));
+  if ($form_state['values']['patron_uid']) {
+    if ($form_state['values']['patron_uid_set'] && is_numeric($form_state['values']['patron_uid'])) {
+      $uid = $form_state['values']['patron_uid'];
+      $patron = user_load($uid);
+      if (empty($patron)) {
+        form_set_error('patron_uid', t('Invalid Patron User ID.'));
+      }
+    }
+    elseif ($autocomplete_disabled && !empty($form_state['values']['patron_uid'])) {
+      $patron = user_load(array('name' => $form_state['values']['patron_uid']));
+      if (empty($patron)) {
+        form_set_error('patron_uid', t('Library Patron: Could not find a corresponding Drupal user.'));
       }
     }
     else {
-      preg_match('/^(?:\s*|(.*) )?\[\s*nid\s*:\s*(\d+)\s*\]$/', $form_state['values']['patron_id'], $matches);
+      preg_match('/^(?:\s*|(.*) )?\[\s*uid\s*:\s*(\d+)\s*\]$/', $form_state['values']['patron_uid'], $matches);
       if (!empty($matches)) {
-        // explicit nid
-        list($temp, $title, $nid) = $matches;
-        if (!empty($title) && ($n_patron = node_load($nid))) {
-          if ($title != $n_patron->title) {
-            form_set_error('patron_id', t('Library Patron: Name mismatch. Please check your selection.'));
-          }
+        // explicit uid
+        list($temp, $name, $uid) = $matches;
+        $patron = user_load($uid);
+        if (empty($patron)) {
+          form_set_error('patron_uid', t('Library Patron: Could not find a corresponding Drupal user.'));
         }
       }
     }
-    if (!empty($n_patron)) {
-      $form_state['values']['patron_email'] = $n_patron->email;
-      $form_state['values']['patron_uid'] = $n_patron->patron_uid;
-      $form_state['values']['patron_id'] = $n_patron->nid;
-      $form_state['values']['patron_name'] = $n_patron->title;
-      $form_state['values']['patron_name_last'] = $n_patron->name_last;
-      $form_state['values']['patron_name_first'] = $n_patron->name_first;
+    if (!empty($patron)) {
+      $form_state['values']['patron_email'] = $patron->mail;
+      $form_state['values']['patron_uid'] = $patron->uid;
+      $form_state['values']['patron_name'] = $patron->name;
     }
     else {
-      form_set_error('patron_id', t('You must specify a library patron.'));
+      form_set_error('patron_uid', t('You must specify a library patron.'));
     }
   }
   else {
-    form_set_error('patron_id', t('You must specify a library patron.'));
+    form_set_error('patron_uid', t('You must specify a library patron.'));
   }
   
   if ($form_state['values']['item_id']) {
@@ -210,8 +217,8 @@ function library_transaction_form_validate($form, &$form_state) {
       elseif ($item->library_status == LIBRARY_ITEM_UNAVAILABLE &&  $action->status_change == LIBRARY_ITEM_TYPE_UNAVAILABLE) {
         form_set_error('action_aid', t('This item is not currently available.'));
       }
-      elseif ($item->library_status == LIBRARY_ITEM_UNAVAILABLE && $n_patron->nid <> $item->last_patron_id) {
-        form_set_error('patron_id', t('This item was made unavailable by a different patron.  Only that patron can perform actions on it.'));
+      elseif ($item->library_status == LIBRARY_ITEM_UNAVAILABLE && $patron->uid <> $item->last_patron_uid) {
+        form_set_error('patron_uid', t('This item was made unavailable by a different patron.  That patron must release the item first.'));
       }
     }  
   }
@@ -237,7 +244,7 @@ function library_transaction_form_submit($form, &$form_state) {
   elseif ($form_state['values']['action_status_change'] == LIBRARY_ACTION_TYPE_AVAILABLE) {
     $new_status = LIBRARY_ITEM_AVAILABLE;   
   }
-  db_query("INSERT {library_transactions} (nid, item_id, patron_id, action_aid, duedate, notes, created) VALUES (%d, %d, %d, %d, %d, '%s', %d)", $form_state['values']['nid'], $form_state['values']['item_id'], $form_state['values']['patron_id'], $form_state['values']['action_aid'], $duedate, check_plain($form_state['values']['notes']), $now);
+  db_query("INSERT {library_transactions} (nid, item_id, uid, action_aid, duedate, notes, created) VALUES (%d, %d, %d, %d, %d, '%s', %d)", $form_state['values']['nid'], $form_state['values']['item_id'], $form_state['values']['patron_uid'], $form_state['values']['action_aid'], $duedate, check_plain($form_state['values']['notes']), $now);
   if ($form_state['values']['action_status_change'] > LIBRARY_ACTION_NO_CHANGE) {
     db_query("UPDATE {library} set library_status = %d WHERE id = %d", $new_status, $form_state['values']['item_id']);
   }
@@ -251,7 +258,7 @@ function library_transaction_form_submit($form, &$form_state) {
       'id' => $form_state['values']['item_id'], 'nid' => $form_state['values']['nid'], 'title' => $form_state['values']['item_name'], 'barcode' => $form_state['values']['barcode'], 'node_type' => $form_state['values']['node_type']
     );
     $context['transaction'] = array('id' => $transaction_id, 'action_name' => $form_state['values']['action_name'], 'aid' => $form_state['values']['action_aid'], 'notes' => check_plain($form_state['values']['notes']), 'duedate' => $duedate, 'created' => $now);
-    $context['patron'] = array('nid' => $form_state['values']['patron_id'], 'name' => $form_state['values']['patron_name_first'] .' '. $form_state['values']['patron_name_last'], 'email' => $form_state['values']['patron_email'], 'uid' => $form_state['values']['patron_uid']);
+    $context['patron'] = array('name' => $form_state['values']['patron_name'], 'mail' => $form_state['values']['patron_email'], 'uid' => $form_state['values']['patron_uid']);
     $actions = _library_get_hook_aids('library', 'after_'. $clean);
     if (!empty($actions)) {
       actions_do($actions, $object, $context);
@@ -262,12 +269,18 @@ function library_transaction_form_submit($form, &$form_state) {
 }
 
 function library_transaction_view($tid) {
+  global $user;
   $transaction = library_get_transaction_by_tid($tid);
   if (isset($transaction)) {
     $list[] = t("Date: @action_date", array('@action_date' => format_date($transaction->created, 'custom', 'M j, Y')));
     $list[] = t("Item: ". l($transaction->item_name, 'node/'. $transaction->nid));
     $list[] = t("Action: @action", array('@action' => $transaction->action_name));
-    $list[] = t("Patron: ". l($transaction->name_first .' '. $transaction->name_last, 'node/'. $transaction->patron_id));
+    if (user_access('access user profiles', $user)) {
+      $list[] = t("Patron: ". l($transaction->username, 'user/'. $transaction->uid));
+    }
+    else {
+      $list[] = t("Patron: N/A");
+    }
     if (!empty($transaction->duedate)) {
       $list[] = t('Due Date: @due_date', array('@due_date' => format_date($transaction->duedate, 'custom', 'M j, Y')));
     }
@@ -286,17 +299,12 @@ function library_transaction_view($tid) {
  */
 function library_history($node) { 
   $duedate_enabled = library_duedates_enabled($node->type);  
-  global $user;
 
-  if ($node->type == 'patron') {
-    $is_patron = TRUE;
-  }
-  else {
-    $is_patron = FALSE;
-  }
-
-  if (library_item_in_library($node) || $is_patron) {
+  if (library_item_in_library($node)) {
     $header = array(t('Date'), t('Transaction'), t('Notes'));
+    if (user_access('access user profiles')) {
+      $header[] = t('Patron');
+    }
     if ($duedate_enabled) {
       $header[] = t('Due Date');
     }
@@ -323,13 +331,17 @@ function library_history($node) {
             $detail_link = l('View Details', 'library-items/transaction/view/'. $transaction->tid);
           }
           if ($cur_item <> $last_item) {
-            $item = array('id' => $transaction->item_id, 'library_status' => $transaction->library_status, 'last_patron_id' => $transaction->patron_id, 'in_circulation' => $transaction->in_circulation);
+            $item = array('id' => $transaction->item_id, 'library_status' => $transaction->library_status, 'last_patron_uid' => $transaction->uid, 'in_circulation' => $transaction->in_circulation);
             $links = library_get_action_links($item);
             if (!empty($links)) {
               $action_link = implode(" | ", $links);
             }
           } 
           $temp_array = array($created, $transaction->action_name, $transaction->notes);
+          if (user_access('access user profiles')) {
+            $patron_link = l($transaction->username, 'user/'. $transaction->uid);
+            $temp_array[] = $patron_link;
+          }
           if (isset($duedate)) { 
             $temp_array[] = $duedate; 
           }
@@ -352,16 +364,75 @@ function library_history($node) {
       return theme('table', $header, $rows);
     }
     else {
-      if ($is_patron) {
-        return "<p>This patron has not performed any actions.</p>";
-      }
-      else {
-        return "<p>No actions have been performed on this item.</p>";
-      }
+      return "<p>No actions have been performed on this item.</p>";
     }
   }
   else {
     return "<p>This item type is not part of the library.</p>";
+  }
+}
+
+/**
+ * Menu callback; show the transaction history of a single user.
+ */
+function library_history_user($patron) { 
+  $duedate_enabled = library_duedates_enabled($node->type);  
+
+  $header = array(t('Date'), t('Item'), t('Transaction'), t('Notes'));
+  if ($duedate_enabled) {
+    $header[] = t('Due Date');
+  }
+  $header[] = t('Actions');
+  $rows = array();
+
+  $transactions = library_get_transactions_by_user($patron);
+
+  if (!empty($transactions)) {
+    $last_item = '';
+    foreach ($transactions as $transaction) {
+      $detail_link = '';
+      $action_link = '';
+      $cur_item = $transaction->item_id;
+      $created = format_date($transaction->created, 'small');
+      if ($duedate_enabled && $cur_item <> $last_item && !empty($transaction->duedate)) {
+        $duedate = format_date($transaction->duedate, 'small');
+      }
+      elseif ($duedate_enabled) {
+        $duedate = '';
+      }
+      if (user_access('administer transactions', $user)) {
+        $detail_link = l('View Details', 'library-items/transaction/view/'. $transaction->tid);
+      }
+      if ($cur_item <> $last_item) {
+        $item = array('id' => $transaction->item_id, 'library_status' => $transaction->library_status, 'last_patron_uid' => $transaction->uid, 'in_circulation' => $transaction->in_circulation);
+        $links = library_get_action_links($item);
+        if (!empty($links)) {
+          $action_link = implode(" | ", $links);
+        }
+      } 
+      $temp_array = array($created, l($transaction->item_name, 'node/'. $transaction->nid), $transaction->action_name, $transaction->notes);
+      if (isset($duedate)) { 
+        $temp_array[] = $duedate; 
+      }
+      if (!empty($detail_link) && !empty($action_link)) {
+        $temp_array[] = $detail_link .' | '. $action_link;
+      }
+      elseif (!empty($action_link)) {
+        $temp_array[] = $action_link;
+      }
+      elseif (!empty($detail_link)) {
+        $temp_array[] = $detail_link;
+      }
+      else {
+        $temp_array[] = '';
+      }
+      $rows[] = $temp_array;
+      $last_item = $cur_item;
+    }
+    return theme('table', $header, $rows);
+  }
+  else {
+    return "<p>This user has not performed any library actions.</p>";
   }
 }
 
@@ -395,7 +466,7 @@ function library_overdue_items() {
         $patron_name = $record['patron']['patron_name'];
         $patron_email = $record['patron']['patron_email'];
         foreach ($record['items'] as $id => $values) {
-          $item = array('library_status' => LIBRARY_ITEM_UNAVAILABLE, 'id' => $id, 'last_patron_id' => $patron_id, 'in_circulation' => $values['in_circulation']);
+          $item = array('library_status' => LIBRARY_ITEM_UNAVAILABLE, 'id' => $id, 'last_patron_uid' => $patron_id, 'in_circulation' => $values['in_circulation']);
           $links = implode(" | ", library_get_action_links($item));
 
           $rows[] = array($values['item_name'], $patron_name, format_date($values['due_date'], 'small'), l('Item Details', 'node/'. $values['nid']) .' | '. $links);

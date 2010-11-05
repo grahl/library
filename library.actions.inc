@@ -74,8 +74,8 @@ function library_renew_action(&$object, $context = array()) {
   $patron = $context['patron'];
   $item = $context['item'];
   $item_obj = library_load($item['id']);
-  if ($item_obj && !empty($item_obj->last_transaction_id) && !empty($item_obj->last_transaction_name) && !empty($item_obj->last_patron_id) && !empty($item_obj->last_due_date) && 
-      $item_obj->last_patron_id == $patron['nid'] && $item_obj->in_circulation == LIBRARY_CIRCULATION && $item_obj->library_status == LIBRARY_ITEM_UNAVAILABLE) {
+  if ($item_obj && !empty($item_obj->last_transaction_id) && !empty($item_obj->last_transaction_name) && !empty($item_obj->last_patron_uid) && !empty($item_obj->last_due_date) && 
+      $item_obj->last_patron_uid == $patron['uid'] && $item_obj->in_circulation == LIBRARY_CIRCULATION && $item_obj->library_status == LIBRARY_ITEM_UNAVAILABLE) {
 
     $type = $item_obj->type;
     $clean = library_clean_action_name($item_obj->last_transaction_name);
@@ -106,8 +106,8 @@ function library_mail($key, &$message, $params) {
       $variables = array(
         '%site_name' => variable_get('site_name', 'Drupal'),
         '%patron_name' => $context['patron']['name'],
-        '%patron_email' => $context['patron']['email'],
-        '%patron_id' => $context['patron']['nid'], 
+        '%patron_email' => $context['patron']['mail'],
+        '%patron_uid' => $context['patron']['uid'], 
         '%node_url' => url('node/'. $context['item']['nid'], array('absolute' => TRUE)),  
         '%node_type' => $context['item']['node_type'],
         '%title' => $context['item']['title'],
@@ -167,7 +167,7 @@ function library_send_email_action_form($context) {
     '#default_value' => $context['message'],
     '#cols' => '80',
     '#rows' => '20',
-    '#description' => t('The message that should be sent. You may include the following variables: %site_name, %patron_name, %patron_email, %node_url, %item_id, %node_type, %title, %barcode, %transaction_name, %notes. Not all variables will be available in all contexts.'),
+    '#description' => t('The message that should be sent. You may include the following variables: %site_name, %patron_name, %patron_mail, %patron_uid, %node_url, %item_id, %node_type, %title, %barcode, %transaction_name, %notes. Not all variables will be available in all contexts.'),
   );
   return $form;
 }
@@ -178,9 +178,9 @@ function library_send_email_action_form($context) {
 function library_send_email_action_validate($form, $form_state) {
   $form_values = $form_state['values'];
   // Validate the configuration form.
-  if (!valid_email_address($form_values['recipient']) && $form_values['recipient'] != '%patron_email') {
-    // We want the literal %patron_email placeholder to be emphasized in the error message.
-    form_set_error('recipient', t('Please enter a valid email address or %patron_email.', array('%patron_email' => '%patron_email')));
+  if (!valid_email_address($form_values['recipient']) && $form_values['recipient'] != '%patron_mail') {
+    // We want the literal %patron_mail placeholder to be emphasized in the error message.
+    form_set_error('recipient', t('Please enter a valid email address or %patron_mail.', array('%patron_mail' => '%patron_mail')));
   }
 }
 
@@ -206,14 +206,12 @@ function library_send_email_action(&$object, $context) {
 
   $recipient = $context['recipient'];
   $patron = $context['patron'];
-  $language = language_default();
-  if (!empty($patron->uid)) {
-    $account = user_load($patron->uid);
-    $language = user_preferred_language($account);
-  }
 
-  if ($recipient == '%patron_email') {
-      $recipient = $context['patron']['email'];
+  $account = user_load($patron->uid);
+  $language = user_preferred_language($account);
+
+  if ($recipient == '%patron_mail') {
+      $recipient = $context['patron']['mail'];
   }
   
   $params = array('context' => $context);

@@ -88,37 +88,26 @@ function library_perm() {
  * Determine whether a user may perform any library action
  */
 function library_action_access($aid) {
-  $may_view_patron = FALSE;
-  if (user_access('view patron content')) {
-    $may_view_patron = TRUE;
-  }
-  else {
-    global $user;
-    $user_patron = patron_load_by_uid($user->uid);
-    if (is_object($user_patron)) {
-      $may_view_patron = TRUE;
-    }
-  }
-  if (user_access('administer transactions') && $may_view_patron) {
+  global $user;
+  if (user_access('administer transactions', $user)) {
     return TRUE;
   }
-  elseif ($aid && $may_view_patron) {
+  elseif ($aid) {
     $action = library_get_action($aid);
     if ($action->name) {
-      return user_access('submit library '. $action->name);
+      return user_access('submit library '. $action->name, $user);
     }
   }
   return FALSE;
 }
 
-function library_history_access($node) {
+function library_history_user_access($patron_user) {
+  global $user;
   if (user_access('view library history')) {
     return TRUE;
   }
-  elseif (user_access('view own library history')) {
-    global $user;
-    $user_patron = patron_load_by_uid($user->uid);
-    if (is_object($user_patron) && $user_patron->nid == $node->nid) {
+  elseif (user_access('view own library history', $user)) {
+    if ($patron_user->uid == $user->uid) {
       return TRUE;
     }
   }
@@ -450,7 +439,7 @@ function library_load($item_id) {
     if ($item->in_circulation == LIBRARY_CIRCULATION && $item->library_status == LIBRARY_ITEM_UNAVAILABLE) {
       $last = library_get_last_transaction_by_item($item, LIBRARY_ACTION_TYPE_UNAVAILABLE);
       if ($last) {
-        $item->last_patron_id = $last->patron_id;
+        $item->last_patron_uid = $last->uid;
         $item->last_transaction_id = $last->tid;
         $item->last_transaction_name = $last->action_name;
         if (!empty($last->duedate)) {
@@ -477,7 +466,16 @@ function library_menu() {
     'title' => 'History',
     'page callback' => 'library_history',
     'page arguments' => array(1),
-    'access callback' => 'library_history_access',
+    'access arguments' => array('view library history'),
+    'type' => MENU_LOCAL_TASK,
+    'weight' => 2,
+    'file' => 'library.pages.inc',
+  );
+  $items['user/%user/library/history'] = array(
+    'title' => 'History',
+    'page callback' => 'library_history_user',
+    'page arguments' => array(1),
+    'access callback' => 'library_history_user_access',
     'access arguments' => array(1),
     'type' => MENU_LOCAL_TASK,
     'weight' => 2,
@@ -571,6 +569,12 @@ function library_menu() {
     'page callback' => 'library_title_js',
     'access arguments' => array('access content'),
     'type' => MENU_CALLBACK,
+  );
+  $items['patrons/autocomplete'] = array(
+    'title' => 'Patron Autocomplete',
+    'page callback' => 'library_patron_autocomplete',
+    'access arguments' => array('access user profiles'),
+    'type' => MENU_CALLBACK
   );
   return $items;
 }
@@ -843,7 +847,7 @@ function library_load_items($node) {
     while ($item = db_fetch_object($result)) {
       $library_item = library_load($item->id);
       $items[$row]['library_status'] = ($library_item->library_status ? $library_item->library_status : LIBRARY_ITEM_AVAILABLE);
-      $items[$row]['last_patron_id'] = ($library_item->last_patron_id ? $library_item->last_patron_id : '');
+      $items[$row]['last_patron_uid'] = ($library_item->last_patron_uid ? $library_item->last_patron_uid : '');
       $items[$row]['last_due_date'] = ($library_item->last_due_date ? $library_item->last_due_date : '');
       $items[$row]['last_transaction_id'] = ($library_item->last_transaction_id ? $library_item->last_transaction_id : '');
       $items[$row]['last_transaction_name'] = ($library_item->last_transaction_name ? $library_item->last_transaction_name : '');
@@ -935,13 +939,13 @@ function library_get_overdue_items() {
   $overdueitems = array();
   while ($result = db_fetch_object($items)) {
     $item = library_load($result->id);
-    if (!empty($item->last_patron_id) && !empty($item->last_due_date) && (time() > $item->last_due_date)) {
-      $patron = node_load($item->last_patron_id);
-      if (!isset($overdueitems[$item->last_patron_id]['patron']['patron_email'])) {
-        $overdueitems[$item->last_patron_id]['patron']['patron_email'] = $patron->email;
-        $overdueitems[$item->last_patron_id]['patron']['patron_name'] = $patron->name_first .' '. $patron->name_last;
+    if (!empty($item->last_patron_uid) && !empty($item->last_due_date) && (time() > $item->last_due_date)) {
+      $patron = user_load($item->last_patron_uid);
+      if (!isset($overdueitems[$item->last_patron_uid]['patron']['patron_email'])) {
+        $overdueitems[$item->last_patron_uid]['patron']['patron_email'] = $patron->mail;
+        $overdueitems[$item->last_patron_uid]['patron']['patron_name'] = $patron->name;
       }
-      $overdueitems[$item->last_patron_id]['items'][$item->id] = array('item_name' => $item->title, 'nid' => $item->nid, 'due_date' => $item->last_due_date, 'in_circulation' => $item->in_circulation);
+      $overdueitems[$item->last_patron_uid]['items'][$item->id] = array('item_name' => $item->title, 'nid' => $item->nid, 'due_date' => $item->last_due_date, 'in_circulation' => $item->in_circulation);
     }
   }
   return $overdueitems;
@@ -1000,11 +1004,13 @@ function library_duedates_enabled($type = NULL) {
 
 function library_get_transactions_by_item($item) {
   $result = db_query('SELECT lt.created, lt.tid, la.aid, la.name as "action_name", 
-                      la.status_change, lt.patron_id, lt.item_id, lt.duedate, lt.notes, l.in_circulation, l.barcode, n.title as "item_name", n.nid
+                      la.status_change, lt.uid, lt.item_id, lt.duedate, lt.notes, l.in_circulation, l.barcode, n.title as "item_name", n.nid
                       FROM {library_transactions} lt, {library_actions} la, {library} l, {node} n 
                       WHERE la.aid = lt.action_aid AND n.nid = l.nid AND lt.item_id = l.id AND l.id = %d 
                       ORDER BY lt.created DESC', $item->id);
   while ($transaction = db_fetch_object($result)) {
+    $patron = user_load($transaction->uid);
+    $transaction->username = $patron->name;
     $transaction->library_status = isset($item->library_status) ? $item->library_status : LIBRARY_ITEM_AVAILABLE;
     $transactions[] = $transaction;
   }
@@ -1017,28 +1023,20 @@ function library_get_transactions_by_item($item) {
 }
 
 function library_get_transactions_by_node($node) {
-  if ($node->type == 'patron') {
-    $temp_transactions = library_get_transactions_by_patron($node);
-    if (!empty($temp_transactions)) {
-      $transactions[] = $temp_transactions;
-    }
-  }
-  else {
-    foreach ($node->items as $instance) {
-      $item = (object) $instance;
-      $temp_transactions = library_get_transactions_by_item($item);
-      if (!empty($temp_transactions)) { 
-        $transactions[] = library_get_transactions_by_item($item);
-      }
+  foreach ($node->items as $instance) {
+    $item = (object) $instance;
+    $temp_transactions = library_get_transactions_by_item($item);
+    if (!empty($temp_transactions)) { 
+      $transactions[] = library_get_transactions_by_item($item);
     }
   }
   return $transactions;
 }
 
-function library_get_transactions_by_patron($node) {
-  $result = db_query('SELECT lt.created, lt.tid, la.aid, la.name as "action_name", la.status_change, lt.patron_id, lt.item_id, lt.duedate, lt.notes, n.title as "item_name", n.nid FROM {library_transactions} lt, {library_actions} la, {node} n WHERE la.aid = lt.action_aid AND n.nid = lt.nid AND lt.patron_id = %d ORDER BY lt.created DESC', $node->nid);
+function library_get_transactions_by_user($user) {
+  $result = db_query('SELECT lt.created, lt.tid, la.aid, la.name as "action_name", la.status_change, lt.uid, lt.item_id, lt.duedate, lt.notes, n.title as "item_name", n.nid FROM {library_transactions} lt, {library_actions} la, {node} n WHERE la.aid = lt.action_aid AND n.nid = lt.nid AND lt.uid = %d ORDER BY lt.created DESC', $user->uid);
   
-  $items_result = db_query('SELECT DISTINCT item_id FROM {library_transactions} WHERE patron_id = %d', $node->nid);
+  $items_result = db_query('SELECT DISTINCT item_id FROM {library_transactions} WHERE uid = %d', $user->uid);
   $statuses = array();
   $barcodes = array();
   $circulation = array();
@@ -1053,6 +1051,7 @@ function library_get_transactions_by_patron($node) {
     $transaction->library_status = $statuses[$transaction->item_id];
     $transaction->barcode = $barcodes[$transaction->item_id];
     $transaction->in_circulation = $circulation[$transaction->item_id];
+    $transaction->username = $user->name;
     $transactions[] = $transaction;
   }
   if (!empty($transactions)) {
@@ -1065,7 +1064,7 @@ function library_get_transactions_by_patron($node) {
 
 function library_get_transaction_by_tid($tid) {
   if (isset($tid) && is_numeric($tid)) {
-    $result = db_fetch_object(db_query('SELECT lt.created, la.name as "action_name", la.status_change, lp.nid as "patron_id", lp.name_last, lp.name_first, n.title as "item_name", n.type as "item_type", lt.item_id as "item_id", lt.nid as "nid", lt.duedate, lt.notes FROM {library_transactions} lt, {library_actions} la, {library_patrons} lp, {node} n WHERE la.aid = lt.action_aid AND lp.nid = lt.patron_id AND n.nid = lt.nid AND lt.tid = %d', $tid));
+    $result = db_fetch_object(db_query('SELECT lt.created, la.name as "action_name", la.status_change, u.uid, u.name as "username", n.title as "item_name", n.type as "item_type", lt.item_id as "item_id", lt.nid as "nid", lt.duedate, lt.notes FROM {library_transactions} lt, {library_actions} la, {users} u, {node} n WHERE la.aid = lt.action_aid AND u.uid = lt.uid AND n.nid = lt.nid AND lt.tid = %d', $tid));
     return $result;
   }
   else {
@@ -1176,18 +1175,17 @@ function library_get_action_links($item) {
   $actions = library_actions($aids, $user);
   $action_links = array();
   
-  $patron_id = '';
-  if (!user_access('view patron content')) {
-    $user_patron = patron_load_by_uid($user->uid);
-    if (is_object($user_patron)) {
-      $patron_id = $user_patron->nid;
-    }
+  $patron_uid = '';
+  global $user;
+  $librarian = user_access('administer transactions', $user) && user_access('access user profiles', $user);
+  if (!$librarian) {
+    $patron_uid = $user->uid;
   }
 
   foreach ($actions as $aid => $action) {
-    if (($action['status_change'] == LIBRARY_ACTION_TYPE_AVAILABLE || $item['library_status'] == LIBRARY_ITEM_UNAVAILABLE) && !empty($item['last_patron_id']) ) {
-      if (empty($patron_id) || ($item['last_patron_id'] == $patron_id)) {
-        $action_links[] = l($action['name'], 'library-items/transaction/'. $aid .'/'. $item['id'] .'/'. $item['last_patron_id']);
+    if (($action['status_change'] == LIBRARY_ACTION_TYPE_AVAILABLE || $item['library_status'] == LIBRARY_ITEM_UNAVAILABLE) && !empty($item['last_patron_uid']) ) {
+      if (empty($patron_uid) || ($item['last_patron_uid'] == $patron_uid)) {
+        $action_links[] = l($action['name'], 'library-items/transaction/'. $aid .'/'. $item['id'] .'/'. $item['last_patron_uid']);
       }
     }
     else {
@@ -1524,4 +1522,45 @@ function library_get_status_text($item) {
     $text = variable_get('library_unavailable_noduedates_text', 'UNAVAILABLE');
   }
   return $text;
+}
+
+/**
+ * Retrieve a pipe delimited string of autocomplete suggestions for existing patron.
+ */
+function library_patron_autocomplete($string) {
+  $matches = array();
+  $result = NULL;
+  if (module_exists('profile')) {
+    $profile_fields = db_query("SELECT fid, name FROM {profile_fields} WHERE type='textfield'"); 
+    $fids = array();
+    while ($field = db_fetch_object($profile_fields)) {
+      if (variable_get('library_profile_' . $field->name, 0) == 1) {
+        $fids[] = $field->fid;
+        /*
+        if (!empty($fids)) {
+          $fids .= "OR fid='" . $field->fid . "'";
+        }
+        else {
+          $fids = "fid='" . $field->fid . "'";
+        }
+        */
+      }
+    }
+    if (!empty($fids)) {
+      $fid_string = implode(',', $fids);
+      if(!empty($fid_string)){
+        $result = db_query_range("SELECT u.uid, CONCAT(pv.value,' (', u.name, ')') as name FROM {users} u JOIN (SELECT uid, GROUP_CONCAT(value SEPARATOR ', ' ) as value FROM {profile_values} WHERE fid IN (%s) GROUP BY (uid)) AS pv ON u.uid = pv.uid WHERE (LOWER(u.name) LIKE LOWER('%s%%') or LOWER(pv.value) LIKE LOWER('%%%s%%'))", $fid_string, check_plain($string), check_plain($string), 0, 10);
+      }
+    }
+  }
+  if (empty($result)) {
+    $result = db_query_range("SELECT uid, name FROM {users} WHERE LOWER(name) LIKE LOWER('%%%s%%')", check_plain($string), 0, 10);
+  }
+
+  while ($patron = db_fetch_object($result)) {
+        $matches[$patron->name .' [uid:'. $patron->uid .']'] = check_plain($patron->name);
+  }
+
+  print drupal_to_js($matches);
+  exit();
 }

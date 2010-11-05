@@ -65,17 +65,6 @@ function patron_schema() {
 }
 
 /**
- * Implementation of hook_install()
- */
-function patron_install() {
-  drupal_install_schema('patron');
-
-  // Notify of changes
-  drupal_set_message(t("Library patron module successfully installed."));
-
-}
-
-/**
  * Implementation of hook_uninstall().
  */
 function patron_uninstall() {
@@ -101,10 +90,4 @@ function patron_uninstall() {
   cache_clear_all(null, 'cache_page');
 
   drupal_set_message(t('Library patron module successfully uninstalled'));
-}
-
-function patron_update_1() {
-  $ret = array();
-  $ret[] = update_sql("UPDATE {library_patrons} SET patron_uid = NULL WHERE patron_uid = 0");
-  return $ret;
 }

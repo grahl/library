@@ -1,6 +1,6 @@
 ; $Id$
 name 		= "Patron"
-description 	= "Create a patron content type for use with the library module.  This module must be enabled if you wish to use library."
+description 	= "DEPRECATED. Do not install."
 package 	= Library
 core 		= "6.x"
 

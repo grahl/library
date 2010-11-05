@@ -30,8 +30,7 @@ If you have CCK installed, you may configure individual fields to display as col
 
 Patrons:
 =========
-You must have created at least one patron in order to perform library actions since every action must be associated with a patron.  Site administrators may configure patron settings at admin/settings/library/patrons.
-
+Patrons are Drupal users. Just assign the permissions you would like patrons to have by role.
 
 Library Settings:
 =========

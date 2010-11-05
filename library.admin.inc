@@ -18,6 +18,13 @@ function library_admin_settings() {
     '#return_value' => 1,
     '#description' => t('This is recommended if you have multiple copies of an item. However, you must have unique identifiers for every instance.  If you have multiple copies but do not use barcodes, library management will be against whether any copy is available and will not track any specific copy.'),
   );
+  $form['library_disable_patron_autocomplete'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('Disable Patron Autocomplete on Transactions'),
+    '#default_value' => variable_get('library_disable_patron_autocomplete', 0),
+    '#return_value' => 1,
+    '#description' => t('This allows patron for a transaction to be selected without autocompletion. Will only work with Drupal username, so make sure the username is the barcode if using a barcode scanner.'),
+  );
   $form['library_unique_titles'] = array(
     '#type' => 'checkbox',
     '#title' => t('Check that Library Item Titles are Unique (Within a Given Content Type)'),
@@ -138,6 +145,24 @@ function library_admin_settings() {
     '#size' => 20,
     '#maxlength' => 20,
   );
+  
+  if (module_exists('profile')) {
+    $form['library_profile'] = array(
+      '#type' => 'fieldset',
+      '#title' => t('Core Profile Fields'),
+      '#description' => t('Choose profile fields to be used when using autocomplete to select a patron. Note: since profile fields do not allow for unique values, whatever unique identifier you are using (such as a barcode) should be the Drupal username. Barcode values below are included only to prevent data loss from previous versions of this module.'),
+    );
+    $profile_fields = db_query("select title, name from {profile_fields} where type = 'textfield'");
+    while ($field = db_fetch_object($profile_fields)) {
+      $form['library_profile']['library_profile_' . $field->name] = array(
+        '#type' => 'checkbox',
+        '#title' => t($field->title . ' (' . $field->name . ')'),
+        '#default_value' => variable_get('library_profile_' . $field->name, 0),
+        '#return_value' => 1,
+      );
+    }
+  }
+
   return system_settings_form($form);
 }
 
@@ -382,13 +407,13 @@ function library_admin_action_submit($form, &$form_state) {
 function library_autocomplete($string) {
   $matches = array();
   if (variable_get('library_item_barcodes', LIBRARY_NO_BARCODES) == LIBRARY_BARCODES) {
-    $result = db_query_range("SELECT l.id, l.barcode, n.title FROM {node} n INNER JOIN {library} l ON n.nid = l.nid WHERE n.status = 1 AND n.type <> 'patron' AND l.barcode <> '' AND LOWER(l.barcode) LIKE LOWER('%s%%')", check_plain($string), 0, 10);
+    $result = db_query_range("SELECT l.id, l.barcode, n.title FROM {node} n INNER JOIN {library} l ON n.nid = l.nid WHERE n.status = 1 AND l.barcode <> '' AND LOWER(l.barcode) LIKE LOWER('%s%%')", check_plain($string), 0, 10);
     while ($item = db_fetch_object($result)) {
       $matches[$item->barcode .' [title:'. $item->title .'] [id:'. $item->id .']'] = check_plain($item->barcode);
     }
   }
   else {
-    $result = db_query_range("SELECT DISTINCT l.id, n.title FROM {node} n INNER JOIN {library} l ON n.nid = l.nid WHERE n.status = 1 AND n.type <> 'patron' AND LOWER(n.title) LIKE LOWER('%s%%')", check_plain($string), 0, 10);
+    $result = db_query_range("SELECT DISTINCT l.id, n.title FROM {node} n INNER JOIN {library} l ON n.nid = l.nid WHERE n.status = 1 AND LOWER(n.title) LIKE LOWER('%s%%')", check_plain($string), 0, 10);
     while ($item = db_fetch_object($result)) {
       $my_key = $item->title .' [id:'. $item->id .']';
       $matches[$my_key] = check_plain($my_key);
@@ -409,9 +434,10 @@ function library_notify_overdue() {
     }
     else {
       $num_emails = 0;
-      foreach ($records as $patron_id => $record) {
+      foreach ($records as $patron_uid => $record) {
         $params = $record;
         drupal_mail('library', 'notify_overdue', $params['patron']['patron_email'], language_default(), $params);
+        watchdog('library', 'Overdue notice sent to %email', array('%email' => $params['patron']['patron_email']));
         $num_emails++;
       }
       drupal_set_message(t($num_emails .' email(s) sent successfully.'));
