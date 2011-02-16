@@ -45,8 +45,6 @@ define('LIBRARY_NO_BARCODES', 0);
  */
 define('LIBRARY_BARCODES', 1);
 
-define('LIBRARY_UNIQUE_TITLES', 1);
-
 /**
  * Library action that does not change item status.
  */
@@ -63,23 +61,18 @@ define('LIBRARY_ACTION_TYPE_UNAVAILABLE', 1);
 define('LIBRARY_ACTION_TYPE_AVAILABLE', 2);
 
 /**
- * Number of results to display per page
- */
-define('LIBRARY_RESULTS_PER_PAGE', 50);
-
-/**
 * Valid permissions for this module
 * @return array An array of valid permissions for this module
 */
-function library_perm() {
+function library_permission() {
   $permissions = array(
-    'administer library', 
-    'administer transactions',
-    'view library history',
-    'view own library history',
+    'administer library' => array('title' => t('Administer Library'), 'description' => t('Modify library settings such as adding additional actions or modifying load periods')), 
+    'administer transactions' => array('title' => t('Administer Library Transactions'), 'description' => t('Execute any library action on behalf of this user or another user that this user has permission to access')),
+    'view library history' => array('title' => t('View Library History'), 'description' => t('View history for each node or user that this user has permission to access')),
+    'view own library history' => array('title' => t('View Own Library History'), 'description' => t('View own library history')),
   );
   foreach (library_actions() as $aid => $action) {
-    $permissions[] = 'submit library '. $action['name'];
+    $permissions['submit library '. $action['name']] = array('title' => t('submit library '. $action['name']));
   }
   return $permissions;
 }
@@ -87,7 +80,7 @@ function library_perm() {
 /* 
  * Determine whether a user may perform any library action
  */
-function library_action_access($aid) {
+function library_may_perform_action($aid) {
   global $user;
   if (user_access('administer transactions', $user)) {
     return TRUE;
@@ -101,7 +94,7 @@ function library_action_access($aid) {
   return FALSE;
 }
 
-function library_history_user_access($patron_user) {
+function library_may_view_history($patron_user) {
   global $user;
   if (user_access('view library history')) {
     return TRUE;
@@ -121,250 +114,115 @@ function library_help($path, $arg) {
   global $user;
   
   switch ($path) {
-    case 'admin/settings/library':
-      return t('<p>Below are display options for library items and lists. </p>');
-    case 'admin/settings/library/duedates':
-      return t('<p>Due date and overdue item functionality are disabled by default. Below are options for handling how long items may be unavailable. To enable due date functionality, set a number of days greater than zero for the period an item may be made unavailable for one of the actions below. You may add further actions on the <a href="@libraryactions">Library Actions</a> page.</p>', array('@libraryactions' => url('admin/settings/library/actions')));
-    case 'admin/settings/library/actions':
-      return t('<p>Two actions are included by default: Check In and Check Out.  You may rename these by clicking "edit action" or add more actions below. You must always have at least one action that makes items available and one that makes items unavailable. Each library action generates a custom trigger to which additional Drupal actions may be assigned. See <a href="@link">Tiggers</a> and <a href="@link2">Actions</a></p>', array('@link' => url('admin/build/trigger/library'), '@link2' => url('admin/settings/actions')));
+    case 'admin/config/workflow/library':
+      return t('Below are display options for library items and lists.');
+    case 'admin/config/workflow/library/duedates':
+      return t('Due date and overdue item functionality are disabled by default. Below are options for handling how long items may be unavailable. To enable due date functionality, set a number of days greater than zero for the period an item may be made unavailable for one of the actions below. You may add further actions on the <a href="@libraryactions">Library Actions</a> page.', array('@libraryactions' => url('admin/config/workflow/library/actions')));
+    case 'admin/config/workflow/library/actions':
+      return t('Two actions are included by default: Check In and Check Out.  You may rename these by clicking "edit action" or add more actions below. You must always have at least one action that makes items available and one that makes items unavailable. Each library action generates a custom trigger to which additional Drupal actions may be assigned. See <a href="@link">Tiggers</a> and <a href="@link2">Actions</a>', array('@link' => url('admin/structure/trigger/library'), '@link2' => url('admin/config/system/actions')));
     case 'library-items/overdue':
-      return t('<p>Below is a list of all overdue library items.  If you are a library administrator, you may <a href="@sendemail">send an email notifying all patrons with overdue items</a>.</p>', array('@sendemail' => url('library-items/overdue/email')));
+      return t('Below is a list of all overdue library items.  If you are a library administrator, you may <a href="@sendemail">send an email notifying all patrons with overdue items</a>.', array('@sendemail' => url('library-items/overdue/email')));
   }
-}
-
-function library_content_extra_fields($type_name) {
-  $extra = array();
-  if (module_exists('content') && variable_get('library_'. $type_name, LIBRARY_ITEM_NOT_IN_LIBRARY) == LIBRARY_ITEM_IN_LIBRARY) {
-    $extra['item_wrapper'] = array('label' => 'Library', 'weight' => -4);
-  }  
-  return $extra;
 }
 
 /**
  * Implementation of hook_form_alter()
  */
-function library_form_alter(&$form, $form_state, $form_id) {
-  if ($form_id == 'node_type_form' && isset($form['identity']['type']) && $form['#node_type']->type <> 'patron') {
+function library_form_alter(&$form, &$form_state, $form_id) {
+  if ($form_id == 'node_type_form') {
     $form['workflow']['library'] = array(
       '#type' => 'radios',
       '#title' => t('Library Item'),
       '#default_value' => variable_get('library_'. $form['#node_type']->type, LIBRARY_ITEM_NOT_IN_LIBRARY),
       '#options' => array(LIBRARY_ITEM_IN_LIBRARY => t('Yes'), LIBRARY_ITEM_NOT_IN_LIBRARY => t('No')),
-      '#description' => t('Library items will appear in library views.')
+      '#description' => t('Library items can have a status of available or unavailable.')
     );
   }
-  elseif (isset($form['type']) && isset($form['#node']) && $form['type']['#value'] .'_node_form' == $form_id) {
+  elseif (!empty($form['#node_edit_form'])) {
     $node = $form['#node'];
     $node_type = $form['type']['#value'];
     if (variable_get('library_'. $node_type, LIBRARY_ITEM_NOT_IN_LIBRARY) == LIBRARY_ITEM_IN_LIBRARY) {
       $form['#cache'] = TRUE;
-
-      if (isset($form_state['item_count'])) {
-        $item_count = $form_state['item_count'];
+      $form['#tree'] = TRUE; 
+      
+      if(!isset($node->library_items)) {
+        $node->library_items[0] = array();
+      }
+      
+      if (isset($form_state['library_item_count']) && !is_array($form_state['library_item_count'])) {
+        $item_count = $form_state['library_item_count'];
       }
       else {
-        $item_count = max(1, empty($node->items) ? 1 : count($node->items));
+        $item_count = max(1, empty($node->library_items) ? 1 : count($node->library_items));
       }
-
-    if (variable_get('library_unique_titles', 0) == LIBRARY_UNIQUE_TITLES) {
-      $type = node_get_types('type', $node_type);
-      if ($type->has_title) {
-        unset($form['title']);
-      }
-      $form['title_wrapper'] = array(
-        '#tree' => FALSE,
-        '#prefix' => '<div class="clear-block" id="title-wrapper">',
-        '#suffix' => '</div>',
-        '#weight' => -5,     
-      ); 
-      $form['title_wrapper']['title'] = array(
-        '#type' => 'textfield',
-        '#title' => check_plain($type->title_label),
-        '#required' => TRUE,
-        '#default_value' => $node->title,
-        '#maxlength' => 255,
-        '#ahah' => array(
-          'path' => 'library/title_js',
-          'wrapper' => 'title-wrapper',
-        ),
-        '#weight' => -5,
-      );
-    } 
 
       // Add a wrapper for the items and more button.
-      $form['item_wrapper'] = array(
-        '#tree' => FALSE,
-        '#weight' => -4,
-        '#prefix' => '<div class="clear-block" id="library-item-wrapper">',
+      $form['library_items_fieldset'] = array(
+        '#type' => 'fieldset',
+        '#title' => t('Instances of this item in the library'),
+        '#prefix' => '<div id="library-items-fieldset-wrapper">',
         '#suffix' => '</div>',
       );
       // Container for just the library items.
-      $form['item_wrapper']['items'] = array(
-        '#prefix' => '<div id="library-items">',
-        '#suffix' => '</div>',
+      /* Not working yet
+      $form['library_items_fieldset']['items'] = array(
         '#theme' => 'library_items_field',
       );
+      */
       // Add the current choices to the form.
-      for ($delta = 0; $delta < $item_count; $delta++) {
-        $form['item_wrapper']['items'][$delta] = _library_item_form($delta, $node->items[$delta]);
+      for ($i = 0; $i < $item_count; $i++) { 
+        $form['library_items_fieldset']['library_items'][$i] = _library_item_form($i, $node->library_items[$i]);
       }      
 
-      // We name our button 'library_more' to avoid conflicts with other modules using
-      // AHAH-enabled buttons with the id 'more'.
-      $form['item_wrapper']['library_more'] = array(
+      $form['library_items_fieldset']['add_library_item'] = array(
         '#type' => 'submit',
         '#value' => t('Add an Item'),
         '#weight' => 1,
-        '#submit' => array('library_more_items_submit'), // If no javascript action.
-        '#ahah' => array(
-          'path' => 'library/js',
-          'wrapper' => 'library-items',
-          'method' => 'replace',
-          'effect' => 'fade',
-         ),
+        '#submit' => array('library_add_more_add_one'), // If no javascript action.
+        '#ajax' => array(
+          'callback' => 'library_add_more_callback',
+          'wrapper' => 'library-items-fieldset-wrapper',
+        ),
       );
-      $form['#submit'][] = 'library_node_form_submit';
+      //$form['#submit'][] = 'library_node_form_submit';
     }
   }
-  elseif ($form_id == 'search_form' && $form['module']['#value'] == 'library' && user_access('use advanced search')) {
-    // Keyword boxes:
-    $form['advanced'] = array(
-      '#type' => 'fieldset',
-      '#title' => t('More Search Options'),
-      '#collapsible' => TRUE,
-      '#collapsed' => TRUE,
-      '#attributes' => array('class' => 'search-advanced'),
-    );
-    $form['advanced']['keywords'] = array(
-      '#prefix' => '<div class="criterion">',
-      '#suffix' => '</div>',
-    );
-    $form['advanced']['keywords']['or'] = array(
-      '#type' => 'textfield',
-      '#title' => t('Containing any of the words'),
-      '#size' => 30,
-      '#maxlength' => 255,
-    );
-    $form['advanced']['keywords']['phrase'] = array(
-      '#type' => 'textfield',
-      '#title' => t('Containing the phrase'),
-      '#size' => 30,
-      '#maxlength' => 255,
-    );
-    $form['advanced']['keywords']['negative'] = array(
-      '#type' => 'textfield',
-      '#title' => t('Containing none of the words'),
-      '#size' => 30,
-      '#maxlength' => 255,
-    );
-
-    // Taxonomy box:
-    if ($taxonomy = module_invoke('taxonomy', 'form_all', 1)) {
-      $form['advanced']['category'] = array(
-        '#type' => 'select',
-        '#title' => t('Only in the category(s)'),
-        '#prefix' => '<div class="criterion">',
-        '#size' => 10,
-        '#suffix' => '</div>',
-        '#options' => $taxonomy,
-        '#multiple' => TRUE,
-      );
-    }
-
-    // Node types:
-    $types = array_map('check_plain', library_get_item_types('names'));
-
-    $form['advanced']['type'] = array(
-      '#type' => 'checkboxes',
-      '#title' => t('Only of the type(s)'),
-      '#prefix' => '<div class="criterion">',
-      '#suffix' => '</div>',
-      '#options' => $types,
-    );
-
-    $form['advanced']['submit'] = array(
-      '#type' => 'submit',
-      '#value' => t('Advanced search'),
-      '#prefix' => '<div class="action">',
-      '#suffix' => '</div>',
-    );
-
-    $form['#validate'][] = 'node_search_validate';
-  }
-  elseif (module_exists('content') && $form_id == 'content_field_edit_form') {
-    $node_type = $form['type_name']['#value'];
-    if (variable_get('library_'. $node_type, LIBRARY_ITEM_NOT_IN_LIBRARY) == LIBRARY_ITEM_IN_LIBRARY) {
-      $newform = array();
-      $newform['library_field_settings'] = array(
-        '#type' => 'fieldset',
-        '#title' => t('Library Settings'),
-      );
-      $newform['library_field_settings']['library_display_field_'. $form['field_name']['#value']] = array(
-        '#type' => 'checkbox',
-        '#title' => t('Display this field in the library'),
-        '#default_value' => variable_get('library_display_field_'. $form['field_name']['#value'], 0),
-        '#return_value' => 1,
-      );
-      $pos = array_search('widget', array_keys($form));
-
-      $form = array_merge(array_slice($form, 0, $pos), $newform, array_slice($form, $pos));
-      $form['#submit'][] = 'library_field_submit';
-    }
-  }
-  elseif ($form_id == '') {
-  }
-  elseif ($form_id == 'search_block_form' && variable_get('library_search_block', 0) == 1) {
-    $form['#submit'][] = 'library_search_box_form_submit';
-  }
-}
-
-function library_field_submit($form_id, &$form_values) {
-   $values = $form_values['values'];
-   variable_set('library_display_field_'. $values['field_name'], $values['library_display_field_'. $values['field_name']]);
-}
-
-function library_search_box_form_submit($form, &$form_state) {
-  $form_id = $form['form_id']['#value'];
-  $form_state['redirect'] = 'search/library/'. trim($form_state['values'][$form_id]);
 }
 
 /*
  * Gets the node object, modifies the title, and updates the node in the form_state
  */
+/*
 function library_node_form_submit($form, &$form_state) {
   if (variable_get('library_item_barcodes', LIBRARY_NO_BARCODES) == LIBRARY_BARCODES) {
     $node = node_submit($form_state['values']);
-    $items = $node->items;
+    $items = $node->library_items;
     $row = 0;
     $last_key = count($items) - 1;
     foreach ($items as $key => $item) {
       //Remove empty item instance if it's not being used
       if ($key > 0 && $key == $last_key && empty($item['id']) && empty($item['barcode'])) {
-        unset($node->items[$key]);
+        unset($node->library_items[$key]);
       }
       $row++;
     }
     $form_state['values'] = (array)$node;
   }
 }
+*/
 
 /**
  * Submit handler to add another instance of a library item to a node form. This handler is used when
  * javascript is not available. It makes changes to the form state and the
  * entire form is rebuilt during the page reload.
  */
-function library_more_items_submit($form, &$form_state) {
-  // Set the form to rebuild and run submit handlers.
-  node_form_submit_build_node($form, $form_state);
-
-  // Make the changes we want to the form state.
-  if ($form_state['values']['library_more']) {
-    $form_state['item_count'] = count($form_state['values']['items']) + 1;
-  }
+function library_add_more_add_one($form, &$form_state) {
+  $form_state['library_item_count']++;
+  $form_state['rebuild'] = TRUE; 
 }
 
 
-/*
+/**
  * Subform for an instance of a library item on node create/edit
  */
 function _library_item_form($delta, $item = array()) {
@@ -376,7 +234,7 @@ function _library_item_form($delta, $item = array()) {
   $form['id'] = array(
     '#type' => 'hidden',
     '#value' => isset($item['id']) ? $item['id'] : '',
-    '#parents' => array('items', $delta, 'id'),
+    '#parents' => array('library_items', $delta, 'id'),
   );
   if (variable_get('library_item_barcodes', LIBRARY_NO_BARCODES) == LIBRARY_BARCODES) {
     $form['barcode'] = array(
@@ -384,7 +242,7 @@ function _library_item_form($delta, $item = array()) {
       '#title' => t('Barcode'),
       '#default_value' => isset($item['barcode']) ? $item['barcode'] : '',
       '#required' => TRUE,
-      '#parents' => array('items', $delta, 'barcode'),
+      '#parents' => array('library_items', $delta, 'barcode'),
     ); 
   }
   $form['in_circulation'] = array(
@@ -392,7 +250,7 @@ function _library_item_form($delta, $item = array()) {
     '#title' => t('Reference Only'),
     '#default_value' => isset($item['in_circulation']) ? $item['in_circulation'] : LIBRARY_CIRCULATION,
     '#return_value' => LIBRARY_REFERENCE_ONLY,
-    '#parents' => array('items', $delta, 'in_circulation'),
+    '#parents' => array('library_items', $delta, 'in_circulation'),
   ); 
   $form['notes'] = array(
     '#type' => 'textfield', 
@@ -400,18 +258,21 @@ function _library_item_form($delta, $item = array()) {
     '#size' => 20,
     '#maxlength' => 128,
     '#default_value' => isset($item['notes']) ? $item['notes'] : '',
-    '#parents' => array('items', $delta, 'notes'),
+    '#parents' => array('library_items', $delta, 'notes'),
   );
   if ($delta > 0) {
-    $form['delete'] = array(
-      '#type' => 'checkbox',
-      '#title' => t('Delete'),
-      '#default_value' => 0,
-      '#return_value' => 1,
-      '#parents' => array('items', $delta, 'delete'),
-    );
+    if (!isset($item['id']) || (isset($item['id']) && $item['library_status'] == LIBRARY_ITEM_AVAILABLE)) {
+      //Only allow deletes of items that are either new or checked in           
+      $form['delete'] = array(
+        '#type' => 'checkbox',
+        '#title' => t('Delete'),
+        '#default_value' => 0,
+        '#return_value' => 1,
+        '#parents' => array('library_items', $delta, 'delete'),
+      );
+    }
   }
-  if ($item['library_status'] == LIBRARY_ITEM_UNAVAILABLE) {
+  if (isset($item['library_status']) && $item['library_status'] == LIBRARY_ITEM_UNAVAILABLE) {
     $form['in_circulation']['#disabled'] = TRUE;
   }
 
@@ -434,7 +295,21 @@ function library_load($item_id) {
     return FALSE;
   }
   else {
-    $item = db_fetch_object(db_query_range("SELECT * FROM {library} l, {node} n WHERE n.nid = l.nid AND id = %d", $item_id, 0, 1));
+    $select = db_select('library', 'l'); 
+    $select->join('node', 'n', 'n.nid = l.nid'); 
+    $select->addField('l', 'id');
+    $select->addField('l', 'barcode');
+    $select->addField('l', 'nid');
+    $select->addField('l', 'in_circulation'); 
+    $select->addField('l', 'library_status'); 
+    $select->addField('l', 'notes'); 
+    $select->addField('l', 'created'); 
+    $select->addField('n', 'title'); 
+    $select->addField('n', 'type'); 
+    $select->addField('n', 'status'); 
+    $select->condition('l.id', $item_id); 
+    $select->range(0, 1); 
+    $item = $select->execute()->fetchAll();
 
     if ($item->in_circulation == LIBRARY_CIRCULATION && $item->library_status == LIBRARY_ITEM_UNAVAILABLE) {
       $last = library_get_last_transaction_by_item($item, LIBRARY_ACTION_TYPE_UNAVAILABLE);
@@ -475,7 +350,7 @@ function library_menu() {
     'title' => 'History',
     'page callback' => 'library_history_user',
     'page arguments' => array(1),
-    'access callback' => 'library_history_user_access',
+    'access callback' => 'library_may_view_history',
     'access arguments' => array(1),
     'type' => MENU_LOCAL_TASK,
     'weight' => 2,
@@ -493,7 +368,7 @@ function library_menu() {
     'title' => 'Perform a Library Transaction',
     'page callback' => 'drupal_get_form',
     'page arguments' => array('library_transaction_form', 2, 3),
-    'access callback' => 'library_action_access',
+    'access callback' => 'library_may_perform_action',
     'access arguments' => array(2),
     'type' => MENU_CALLBACK,
     'file' => 'library.pages.inc',
@@ -513,7 +388,7 @@ function library_menu() {
     'file' => 'library.admin.inc',
   );
 
-  $items['admin/settings/library'] = array(
+  $items['admin/config/workflow/library'] = array(
     'title' => 'Library Settings',
     'description' => 'Edit Library Settings.',
     'page callback' => 'drupal_get_form',
@@ -521,12 +396,12 @@ function library_menu() {
     'access arguments' => array('administer library'),
     'file' => 'library.admin.inc',
   );
-  $items['admin/settings/library/display'] = array(
+  $items['admin/config/workflow/library/display'] = array(
     'title' => 'Display',
     'type' => MENU_DEFAULT_LOCAL_TASK,
     'weight' => -10,
   );
-  $items['admin/settings/library/duedates'] = array(
+  $items['admin/config/workflow/library/duedates'] = array(
     'title' => 'Loan Periods',
     'description' => 'Enable loan periods for checkouts and configure overdue emails.',
     'page callback' => 'drupal_get_form',
@@ -535,7 +410,7 @@ function library_menu() {
     'file' => 'library.admin.inc',
     'type' => MENU_LOCAL_TASK,
   );
-  $items['admin/settings/library/actions'] = array(
+  $items['admin/config/workflow/library/actions'] = array(
     'title' => 'Library Actions',
     'description' => 'View, edit, or add library actions.',
     'page callback' => 'drupal_get_form',
@@ -544,7 +419,7 @@ function library_menu() {
     'type' => MENU_LOCAL_TASK,
     'file' => 'library.admin.inc',
   );
-  $items['admin/settings/library/actions/edit'] = array(
+  $items['admin/config/workflow/library/actions/edit'] = array(
     'title' => 'Edit Library Action',
     'page arguments' => array('library_admin_action'),
     'access arguments' => array('administer library'),
@@ -558,19 +433,7 @@ function library_menu() {
     'type' => MENU_CALLBACK,
     'file' => 'library.admin.inc',
   );
-  $items['library/js'] = array(
-    'title' => 'Javascript Add More Form',
-    'page callback' => 'library_item_js',
-    'access arguments' => array('access content'),
-    'type' => MENU_CALLBACK,
-  );
-  $items['library/title_js'] = array(
-    'title' => 'Javascript Title Validation',
-    'page callback' => 'library_title_js',
-    'access arguments' => array('access content'),
-    'type' => MENU_CALLBACK,
-  );
-  $items['patrons/autocomplete'] = array(
+  $items['library-items/patrons/autocomplete'] = array(
     'title' => 'Patron Autocomplete',
     'page callback' => 'library_patron_autocomplete',
     'access arguments' => array('access user profiles'),
@@ -590,343 +453,191 @@ function library_forms() {
 /**
  * Menu callback for AHAH additions.
  */
-function library_item_js() {
-  $delta = count($_POST['items']);
-
-  $items = $_POST['items'];
-  // Build the new form.
-  $form_state = array('submitted' => FALSE);
-  $form_build_id = $_POST['form_build_id'];
-  // Add the new element to the stored form. Without adding the element to the
-  // form, Drupal is not aware of this new elements existence and will not
-  // process it. We retreive the cached form, add the element, and resave.
-  $form = form_get_cache($form_build_id, $form_state);
-  unset($form['item_wrapper']['items'], $form['item_wrapper']['library_more']);
-  foreach ($items as $key => $item) {
-    $form['item_wrapper']['items'][$key] = _library_item_form($key, $item);
-  }
-  $form['item_wrapper']['items'][$delta] = _library_item_form($delta);
-  form_set_cache($form_build_id, $form, $form_state);
-
-  $form += array(
-    '#post' => $_POST,
-    '#programmed' => FALSE,
-  );
-
-  // Rebuild the form.
-  $form = form_builder($form['type']['#value'] .'_node_form', $form, $form_state);
-
-  // Render the new output.
-  $item_form = $form['item_wrapper']['items'];
-  unset($item_form['#prefix'], $item_form['#suffix']); // Prevent duplicate wrappers.
-  $item_form['#theme'] = 'library_items_field';
-  $item_form[$delta]['#attributes']['class'] = empty($item_form[$delta]['#attributes']['class']) ? 'ahah-new-content' : $item_form[$delta]['#attributes']['class'] .' ahah-new-content';
-  $output = theme('status_messages') . drupal_render($item_form);
-
-  drupal_json(array('status' => TRUE, 'data' => $output));
+function library_add_more_callback($form, $form_state) {
+  return $form['library_items_fieldset'];
 }
 
 /**
- * Menu callback for AHAH additions.
- * Checks whether the title is unique
+ *  Implements hook_node_load()
  */
-function library_title_js() {
-  $title = $_POST['title'];
-
-  $form_state = array('submitted' => FALSE);
-  $form_build_id = $_POST['form_build_id'];
-  $form = form_get_cache($form_build_id, $form_state);
-
-  $nid = $form['nid']['#value'];
-  $type = $form['type']['#value'];
-  $title_label = $form['title_wrapper']['title']['#title'];
-
-  unset($form['title_wrapper']['title']);
-  $form['title_wrapper']['title'] = array(
-    '#type' => 'textfield',
-    '#title' => check_plain($title_label),
-    '#required' => TRUE,
-    '#default_value' => $title,
-    '#maxlength' => 255,
-    '#ahah' => array(
-      'path' => 'library/title_js',
-      'wrapper' => 'title-wrapper',
-    ),
-    '#weight' => -5,
-  );
+function library_node_load($nodes, $types) {
+  foreach ($nodes as $node) { 
+    if (variable_get('library_'. $node->type, LIBRARY_ITEM_NOT_IN_LIBRARY) == LIBRARY_ITEM_IN_LIBRARY) {
+      $nids[] = $node->nid; 
+    }
+  }
+  if (!isset($nids) || !count($nids)) {
+    return;
+  } 
   
-  form_set_cache($form_build_id, $form, $form_state);
-
-  $form += array(
-    '#post' => $_POST,
-    '#programmed' => FALSE,
-  );
-
-  // Rebuild the form.
-  $form = form_builder($form['type']['#value'] .'_node_form', $form, $form_state);
-  $title_field = $form['title_wrapper']['title'];
-
-  if (is_numeric($nid)) {
-    $repeats = db_fetch_object(db_query_range("SELECT nid FROM {node} WHERE title = '%s' AND type = '%s' and nid <> %d", check_plain($title), $type, $nid, 0, 1));
-  }
-  else {
-    $repeats = db_fetch_object(db_query_range("SELECT nid FROM {node} WHERE title = '%s' AND type = '%s'", $title, $type, 0, 1));
-  }
-  if ($repeats) {
-    drupal_json(array('status' => TRUE, 'data' => drupal_render($title_field) .'<p class="ahah-new-content warning">WARNING: Title is not unique. You may want to add this as a copy to the existing node. '. l('See Duplicate', 'node/'. $repeats->nid) .'</p>'));
-  }
-  else {
-    drupal_json(array('status' => TRUE, 'data' => drupal_render($title_field) .'<p class="ahah-new-content ok">Title is unique.</p>'));
-  }
-}
-
-/**
- * Implementation of hook_search()
- */
-function library_search($op = 'search', $keys = NULL, $skip_access_check = FALSE) {
-  switch ($op) {
-    case 'name':
-      return t('Library');
-    case 'search':
-      // Build matching conditions
-      list($join1, $where1) = _db_rewrite_sql();
-      $arguments1 = array();
-      $conditions1 = 'n.status = 1';
-
-      if ($type = search_query_extract($keys, 'type')) {
-        $types = array();
-        foreach (explode(',', $type) as $t) {
-          $types[] = "n.type = '%s'";
-          $arguments1[] = $t;
-        }
-        $conditions1 .= ' AND ('. implode(' OR ', $types) .')';
-        $keys = search_query_insert($keys, 'type');
-      }
-      else {
-        $types = array();
-
-        foreach (library_get_item_types() as $t) {
-          $types[] = "n.type = '%s'";
-          $arguments1[] = $t;
-        }
-        $conditions1 .= ' AND ('. implode(' OR ', $types) .')';
-        $keys = search_query_insert($keys, 'type');
-      }
-
-      if ($category = search_query_extract($keys, 'category')) {
-        $categories = array();
-        foreach (explode(',', $category) as $c) {
-          $categories[] = "tn.tid = %d";
-          $arguments1[] = $c;
-        }
-        $conditions1 .= ' AND ('. implode(' OR ', $categories) .')';
-        $join1 .= ' INNER JOIN {term_node} tn ON n.vid = tn.vid';
-        $keys = search_query_insert($keys, 'category');
-      }
-      // Build ranking expression (we try to map each parameter to a
-      // uniform distribution in the range 0..1).
-      $ranking = array();
-      $arguments2 = array();
-      $join2 = '';
-      // Used to avoid joining on node_comment_statistics twice
-      $stats_join = FALSE;
-      $total = 0;
-      if ($weight = (int)variable_get('node_rank_relevance', 5)) {
-        // Average relevance values hover around 0.15
-        $ranking[] = '%d * i.relevance';
-        $arguments2[] = $weight;
-        $total += $weight;
-      }
-      if (module_exists('statistics') && variable_get('statistics_count_content_views', 0) &&
-          $weight = (int)variable_get('node_rank_views', 5)) {
-        // Inverse law that maps the highest view count on the site to 1 and 0 to 0.
-        $scale = variable_get('node_cron_views_scale', 0.0);
-        $ranking[] = '%d * (2.0 - 2.0 / (1.0 + MAX(nc.totalcount) * %f))';
-        $arguments2[] = $weight;
-        $arguments2[] = $scale;
-        $join2 .= ' LEFT JOIN {node_counter} nc ON nc.nid = i.sid';
-        $total += $weight;
-      }
-      
-      // When all search factors are disabled (ie they have a weight of zero), 
-      // the default score is based only on keyword relevance and there is no need to 
-      // adjust the score of each item. 
-      if ($total == 0) {
-        $select2 = 'i.relevance AS score';
-        $total = 1;
-      }
-      else {
-        $select2 = implode(' + ', $ranking) .' AS score';
-      }
-      
-      // Do search.
-      $find = do_search($keys, 'node', 'INNER JOIN {node} n ON n.nid = i.sid '. $join1, $conditions1 . (empty($where1) ? '' : ' AND '. $where1), $arguments1, $select2, $join2, $arguments2, 'ORDER BY n.title, score DESC');
-
-      // Load results.
-      $results = array();
-      $var = array();
-      $var = library_get_table_header();
-      foreach ($find as $item) {
-        // Build the node body.
-        $node = node_load($item->sid);
-        $node_rows = array();
+  //Make sure every eligible node has at least one library item instance
+  $new_to_library = db_select('node', 'n')
+    ->fields('n', array('nid'))
+    ->where('n.nid IN (:nids) AND n.nid NOT IN (SELECT nid FROM {library})', array(':nids' => $nids))
+    ->execute(); 
     
-        $node_rows = library_get_table_row($node, $var);
-        foreach ($node_rows as $row) {
-          $results[] = $row;
-        }
-
-      }
-      return $results;
+  foreach ($new_to_library as $record) {
+    $nid = db_insert('library')
+      ->fields(array(
+        'nid' => $record->nid,
+        'in_circulation' => LIBRARY_CIRCULATION,
+        'library_status' => LIBRARY_ITEM_AVAILABLE,
+        'created' => REQUEST_TIME
+      ))
+      ->execute();
   }
-}
+  
+  //Load library items associated with this node
+  $result = db_select('library', 'l')
+    ->fields('l', array('id', 'barcode', 'nid', 'in_circulation', 'library_status', 'notes', 'created'))
+    ->where('l.nid IN (:nids)', array(':nids' => $nids))
+    ->orderBy('l.nid') 
+    ->execute(); 
 
-/**
- * Implementation of hook_search_page()
- */
-function library_search_page($results) {
-  $var = library_get_table_header();
-
-  $header = $var['header'];
-  $rows = $results;
-
-  $output = theme('table', $header, $rows, array('class' => 'library-list'));
-  $output .= theme('pager', NULL, 10);
-  return $output;
-}
-
-/**
- * Implementation of hook_nodeapi()
- */
-function library_nodeapi(&$node, $op, $teaser = NULL, $page = NULL) {
-  if (library_item_in_library($node)) {
-    switch ($op) {
-      case 'load':
-        $result = array();
-        $result = library_load_items($node);
-        return $result;
-        break;
-      case 'validate':
-      case 'submit':
-        $node = library_validate_items($node);
-        break;
-      case 'insert':
-      case 'update':
-        library_update_items($node);
-        break;
-      case 'delete':
-        db_query('DELETE FROM {library} WHERE nid = %d', $node->nid);
-        break;
-
-      case 'view':
-        $item_weight = -4;
-        if (module_exists('content')) {
-          foreach (variable_get('content_extra_weights_'. $node->type, array()) as $key => $value) {
-            if ($key == 'item_wrapper') {
-              $item_weight = $value;
-            }
-          }
-        }
-        $node->content['items'] = array(
-          '#value' => theme('library_items', $node),
-          '#weight' => $item_weight,
-        );
-        break;
-    }
-  }
-}
-
-/**
- * Load Library Item Data for a given node
- */
-function library_load_items($node) {
-  $result = db_query('SELECT id FROM {library} WHERE nid = %d ORDER BY id', $node->nid);
-  $items = array();
   $row = 0;
-  if ($result) {
-    while ($item = db_fetch_object($result)) {
-      $library_item = library_load($item->id);
-      $items[$row]['library_status'] = ($library_item->library_status ? $library_item->library_status : LIBRARY_ITEM_AVAILABLE);
-      $items[$row]['last_patron_uid'] = ($library_item->last_patron_uid ? $library_item->last_patron_uid : '');
-      $items[$row]['last_due_date'] = ($library_item->last_due_date ? $library_item->last_due_date : '');
-      $items[$row]['last_transaction_id'] = ($library_item->last_transaction_id ? $library_item->last_transaction_id : '');
-      $items[$row]['last_transaction_name'] = ($library_item->last_transaction_name ? $library_item->last_transaction_name : '');
-      $items[$row]['id'] = $item->id;
-      $items[$row]['in_circulation'] = $library_item->in_circulation;
-      $items[$row]['barcode'] = check_plain($library_item->barcode);
-      $items[$row]['notes'] = check_plain($library_item->notes);
-      $row++;
-    } 
-  }
-  else {
-    db_query('INSERT INTO {library} (nid, in_circulation, library_status, created) VALUES (%d, %d, %d, %d)', $node->nid, LIBRARY_CIRCULATION, LIBRARY_ITEM_AVAILABLE, time());
-    $items[$row]['id'] = db_last_insert_id('library', 'id');
-    $items[$row]['in_circulation'] = LIBRARY_CIRCULATION;
-    $items[$row]['library_status'] = LIBRARY_ITEM_AVAILABLE;
-  }
-  return array('items' => $items);
-}
-
-/**
- * Update Library Item Data for a given node
- */
-function library_update_items($node) {
-  $items = $node->items;
-  $row = 0;
-  if ($items) {
-    foreach ($items as $key => $item) {
-      if ($item['delete'] == 1) {
-        db_query('DELETE FROM {library} WHERE id = %d', $item['id']);
-        unset($node->items[$key]);
+  foreach ($result as $item) {
+    $nodes[$item->nid]->library_items[$row] = array(
+      'id' => $item->id,
+      'barcode' => check_plain($item->barcode),
+      'nid' => $item->nid,
+      'in_circulation' => $item->in_circulation,
+      'library_status' => $item->library_status,
+      'notes' => $item->notes,
+      'created' => $item->created
+    );
+    if ($item->in_circulation == LIBRARY_CIRCULATION && $item->library_status == LIBRARY_ITEM_UNAVAILABLE) {
+      $last = library_get_last_transaction_by_item($item, LIBRARY_ACTION_TYPE_UNAVAILABLE);
+      if ($last) {
+        $nodes[$item->nid]->library_items[$row]['last_patron_uid'] = $last->uid;
+        $nodes[$item->nid]->library_items[$row]['last_transaction_id'] = $last->tid;
+        $nodes[$item->nid]->library_items[$row]['last_transaction_name'] = $last->action_name;
+        if (!empty($last->duedate)) {
+          $nodes[$item->nid]->library_items[$row]['last_due_date'] = $last->duedate;
+        }
       }
-      elseif (empty($item['id'])) {
-        db_query("INSERT INTO {library} (nid, barcode, in_circulation, library_status, notes, created) VALUES (%d, '%s', %d, %d, '%s', %d)", $node->nid, check_plain($item['barcode'] .''), $item['in_circulation'], LIBRARY_ITEM_AVAILABLE, $item['notes'], time());
-        $node->items[$row]['id'] = db_last_insert_id('library', 'id');
-      }
-      else {
-        db_query("UPDATE {library} SET barcode = '%s', in_circulation = %d, notes = '%s' WHERE id = %d", check_plain($item['barcode'] .''), $item['in_circulation'], check_plain($item['notes']), $item['id']);
-      }
-
-      $row++;
     }
-  }
+    $row++;
+  } 
 }
 
 /**
- * Validate Library Item Data for a given node
+ * Implements hook_node_validate().
+ *
+ * Check that barcodes are unique if the node is in the library and barcodes are enabled
  */
-function library_validate_items($node) {
-  if (variable_get('library_item_barcodes', LIBRARY_NO_BARCODES) == LIBRARY_BARCODES) {
-    $items = $node->items;
+function library_node_validate($node, $form) {
+  if (variable_get('library_'. $node->type, LIBRARY_ITEM_NOT_IN_LIBRARY) == LIBRARY_ITEM_IN_LIBRARY && variable_get('library_item_barcodes', LIBRARY_NO_BARCODES) == LIBRARY_BARCODES) {
+    if (isset($node->library_items) && !$node->library_items) {
+      form_set_error('library_items', t('Since this content is in the library and barcodes are enabled, you must enter a unique barcode for at least one item.'));
+    }
+    $items = $node->library_items;
     if ($items) {
-      global $base_path;
       //Check that each barcode is unique
-      foreach ($items as $key => $item) {	           
-        $result = db_result(db_query("SELECT COUNT(*) FROM {library} WHERE barcode = '%s' AND barcode <> ''", $item['barcode']));
-        if ((empty($item['id']) && $result) || (!empty($item['id']) && $result > 1)) {
-          form_set_error('items]['. $key .'][barcode', t('The barcode %barcode already exists. Please enter a different barcode.', array('%barcode' => $item['barcode'])));
+      foreach ($items as $key => $item) {
+        $row_number = db_query("SELECT id FROM {library} WHERE barcode <> '' AND barcode = :barcode", array(':barcode' => check_plain($item['barcode'] . '')))->rowCount();	           
+        if ((empty($item['id']) && $result > 0) || (!empty($item['id']) && $result > 1)) {
+          form_set_error('library_items]['. $key .'][barcode', t('The barcode %barcode already exists. Please enter a different barcode.', array('%barcode' => $item['barcode'])));
         }
       }
     }
     else {
-      form_set_error('items', t('You must enter information for at least one item.'));
+      form_set_error('library_items', t('Since this content is in the library and barcodes are enabled, you must enter a unique barcode for at least one item.'));
     }
   }
 } 
 
 /**
- * Check whether a given item (based on its item type) is part of the library
- * @returns Boolean
+ * Implements hook_node_insert().
+ *
+ * As a new node is being inserted into the database, we need to do our own
+ * database inserts.
  */
-function library_item_in_library($node = NULL, $item_id = NULL) {
-  if ($node && variable_get('library_'. $node->type, LIBRARY_ITEM_NOT_IN_LIBRARY) == LIBRARY_ITEM_IN_LIBRARY) {
-    return TRUE;
+function library_node_insert($node) {
+  if (variable_get('library_'. $node->type, LIBRARY_ITEM_NOT_IN_LIBRARY) == LIBRARY_ITEM_IN_LIBRARY) {
+    $items = $node->library_items;
+    if ($items) {
+      foreach ($items as $key => $item) {
+        if ($item['delete'] <> 1) {
+          // Notice that we are ignoring any revision information using $node->nid
+          $nid = db_insert('library')
+            ->fields(array(
+              'nid' => $node->nid,
+              'barcode' => check_plain($item->barcode . ''),
+              'in_circulation' => $item->in_circulation,
+              'library_status' => LIBRARY_ITEM_AVAILABLE,
+              'notes' => check_plain($item->notes . ''),
+              'created' => REQUEST_TIME
+            ))
+            ->execute();
+        }
+      }
+    }
   }
-  elseif ($item_id && db_result(db_query("SELECT COUNT(*) FROM {library} WHERE id = %d", $item_id))) {
-    return TRUE;
+} 
+
+/**
+ * Implements hook_node_update().
+ *
+ * As an existing node is being updated, we need to add our own updates
+ */
+function library_node_update($node) {
+  if (variable_get('library_'. $node->type, LIBRARY_ITEM_NOT_IN_LIBRARY) == LIBRARY_ITEM_IN_LIBRARY) {
+    $items = $node->library_items;
+    if ($items) {
+      foreach ($items as $key => $item) {
+        if ($item['delete'] == 1) {
+          $nid = db_delete('library_transactions')
+            ->condition('item_id', $item['id'])
+            ->execute();
+          $nid = db_delete('library')
+            ->condition('id', $item['id'])
+            ->execute();
+          unset($node->library_items[$key]);
+        }
+        else {
+          $nid = db_update('library')
+            ->fields(array(
+              'barcode' => check_plain($item->barcode . ''),
+              'in_circulation' => $item->in_circulation,
+              'notes' => check_plain($item->notes . ''),
+            ))
+            ->condition('id', $item['id'])
+            ->execute();
+        }
+      }
+    }
   }
-  else {
-    return FALSE;
+}
+
+/**
+ * Implements hook_node_delete().
+ *
+ * When a node is deleted, we need to remove all related records from the library.
+ */
+function library_node_delete($node) {
+  // Notice that we're deleting even if the content type is not in the library.
+  db_delete('library')
+    ->condition('nid', $node->nid)
+    ->execute();
+  db_delete('library_transactions')
+    ->condition('nid', $node->nid)
+    ->execute();
+} 
+
+/**
+ * Implements hook_node_view().
+ *
+ * Display library items when a node is viewed
+ */
+function library_node_view($node, $build_mode = 'full') {
+  if (variable_get('library_'. $node->type, LIBRARY_ITEM_NOT_IN_LIBRARY) == LIBRARY_ITEM_IN_LIBRARY) {
+    $items = $node->library_items;
+    if (!empty($items)) {
+      $node->content['library_items'] = array(
+        '#markup' => theme('library_items', array('items' => $items)),
+        '#weight' => -4,
+      );
+    }
   }
 }
 
@@ -935,11 +646,11 @@ function library_item_in_library($node = NULL, $item_id = NULL) {
  */ 
 function library_get_overdue_items() {
   //Select all the nodes that have ever had an item made unavailable
-  $items = db_query("SELECT id FROM {library} WHERE library_status = %d", LIBRARY_ITEM_UNAVAILABLE); 
+  $items = db_query("SELECT id FROM {library} WHERE library_status = :library_status", array(':library_status' => LIBRARY_ITEM_UNAVAILABLE)); 
   $overdueitems = array();
   while ($result = db_fetch_object($items)) {
     $item = library_load($result->id);
-    if (!empty($item->last_patron_uid) && !empty($item->last_due_date) && (time() > $item->last_due_date)) {
+    if (!empty($item->last_patron_uid) && !empty($item->last_due_date) && (REQUEST_TIME > $item->last_due_date)) {
       $patron = user_load($item->last_patron_uid);
       if (!isset($overdueitems[$item->last_patron_uid]['patron']['patron_email'])) {
         $overdueitems[$item->last_patron_uid]['patron']['patron_email'] = $patron->mail;
@@ -964,7 +675,7 @@ function library_get_overdue_items() {
  */ 
 function library_get_due_date($checkout_date = NULL, $action, $type) {
   if (empty($checkout_date)) {
-    $checkout_date = time();
+    $checkout_date = REQUEST_TIME;
   }
   $allowed = variable_get('library_period_for_'. $type .'_'. $action, 0);
   if ($allowed > 0) {
@@ -1002,19 +713,36 @@ function library_duedates_enabled($type = NULL) {
   }
 }
 
+function library_get_transactions_query() {
+  $select = db_select('library_transactions', 'lt'); 
+  $select->join('library_actions', 'la', 'la.aid = lt.action_aid'); 
+  $select->join('users', 'u', 'u.uid = lt.uid');
+  $select->join('library', 'l', 'l.id = lt.item_id'); 
+  $select->join('node', 'n', 'n.nid = lt.nid'); 
+  $select->addField('lt', 'tid');
+  $select->addField('lt', 'item_id');
+  $select->addField('lt', 'nid');
+  $select->addField('lt', 'uid');
+  $select->addField('lt', 'duedate');
+  $select->addField('lt', 'notes');
+  $select->addField('lt', 'created');
+  $select->addField('la', 'aid');
+  $select->addField('la', 'name', 'action_name');
+  $select->addField('la', 'status_change');
+  $select->addField('u', 'name', 'username');
+  $select->addField('l', 'barcode');
+  $select->addField('l', 'in_circulation'); 
+  $select->addField('l', 'library_status'); 
+  $select->addField('n', 'title', 'item_name'); 
+  $select->orderBy('lt.created', 'DESC');
+  return $select;
+}
+
 function library_get_transactions_by_item($item) {
-  $result = db_query('SELECT lt.created, lt.tid, la.aid, la.name as "action_name", 
-                      la.status_change, lt.uid, lt.item_id, lt.duedate, lt.notes, l.in_circulation, l.barcode, n.title as "item_name", n.nid
-                      FROM {library_transactions} lt, {library_actions} la, {library} l, {node} n 
-                      WHERE la.aid = lt.action_aid AND n.nid = l.nid AND lt.item_id = l.id AND l.id = %d 
-                      ORDER BY lt.created DESC', $item->id);
-  while ($transaction = db_fetch_object($result)) {
-    $patron = user_load($transaction->uid);
-    $transaction->username = $patron->name;
-    $transaction->library_status = isset($item->library_status) ? $item->library_status : LIBRARY_ITEM_AVAILABLE;
-    $transactions[] = $transaction;
-  }
-  if (!empty($transactions)) {
+  $select = library_get_transactions_query();
+  $select->condition('lt.item_id', $item->id); 
+  $transactions = $select->execute()->fetchAll();
+  if ($transactions) {
     return $transactions;
   }
   else {
@@ -1023,38 +751,21 @@ function library_get_transactions_by_item($item) {
 }
 
 function library_get_transactions_by_node($node) {
-  foreach ($node->items as $instance) {
-    $item = (object) $instance;
-    $temp_transactions = library_get_transactions_by_item($item);
-    if (!empty($temp_transactions)) { 
-      $transactions[] = library_get_transactions_by_item($item);
-    }
+  $transactions = NULL;
+  if ($node->library_items) {
+    $select = library_get_transactions_query();
+    $select->condition('lt.nid', $node->nid); 
+    $transactions = $select->execute()->fetchAll();
   }
   return $transactions;
 }
 
 function library_get_transactions_by_user($user) {
-  $result = db_query('SELECT lt.created, lt.tid, la.aid, la.name as "action_name", la.status_change, lt.uid, lt.item_id, lt.duedate, lt.notes, n.title as "item_name", n.nid FROM {library_transactions} lt, {library_actions} la, {node} n WHERE la.aid = lt.action_aid AND n.nid = lt.nid AND lt.uid = %d ORDER BY lt.created DESC', $user->uid);
-  
-  $items_result = db_query('SELECT DISTINCT item_id FROM {library_transactions} WHERE uid = %d', $user->uid);
-  $statuses = array();
-  $barcodes = array();
-  $circulation = array();
-  while ($instance = db_fetch_object($items_result)) {
-    $item = library_load($instance->item_id);
-    $barcodes[$item->id] = $item->barcode;
-    $statuses[$item->id] = $item->library_status;
-    $circulation[$item->id] = $item->in_circulation;
-  }
-  $transactions = array();
-  while ($transaction = db_fetch_object($result)) {
-    $transaction->library_status = $statuses[$transaction->item_id];
-    $transaction->barcode = $barcodes[$transaction->item_id];
-    $transaction->in_circulation = $circulation[$transaction->item_id];
-    $transaction->username = $user->name;
-    $transactions[] = $transaction;
-  }
-  if (!empty($transactions)) {
+  $select = library_get_transactions_query();
+  $select->condition('lt.uid', $user->uid); 
+  $transactions = $select->execute()->fetchAll();
+
+  if ($transactions) {
     return $transactions;
   }
   else {
@@ -1064,8 +775,10 @@ function library_get_transactions_by_user($user) {
 
 function library_get_transaction_by_tid($tid) {
   if (isset($tid) && is_numeric($tid)) {
-    $result = db_fetch_object(db_query('SELECT lt.created, la.name as "action_name", la.status_change, u.uid, u.name as "username", n.title as "item_name", n.type as "item_type", lt.item_id as "item_id", lt.nid as "nid", lt.duedate, lt.notes FROM {library_transactions} lt, {library_actions} la, {users} u, {node} n WHERE la.aid = lt.action_aid AND u.uid = lt.uid AND n.nid = lt.nid AND lt.tid = %d', $tid));
-    return $result;
+    $select = library_get_transactions_query();
+    $select->condition('lt.tid', $tid); 
+    $transaction = $select->execute()->fetchAll();
+    return $transaction;
   }
   else {
     return NULL;
@@ -1109,21 +822,22 @@ function library_get_last_transaction_by_item($item, $type = NULL) {
  * @return 
  *   Array of actions
  */ 
-function library_actions($actions = NULL, $account = NULL) {
-  if (is_array($actions) && !empty($actions)) {
-    $result = db_query("SELECT name, aid, status_change from {library_actions} WHERE aid IN('%s') ORDER BY name, aid, status_change", implode(', ', $actions));
+function library_actions($aids = array(), $display_all = TRUE) {
+  $result = NULL;
+  if (!empty($aids)) {
+    $result = db_query("SELECT name, aid, status_change from {library_actions} WHERE aid IN (:aids) ORDER BY name", array(':aids' => $aids));
   }
-  elseif (is_array($actions) && empty($actions)) {
-    $result = NULL;
+  //Just generating a list with no particular permissions
+  elseif ($display_all) {
+    $result = db_query("SELECT name, aid, status_change from {library_actions} ORDER BY name");
   }
-  else {
-    $result = db_query("SELECT name, aid, status_change from {library_actions} ORDER BY name, aid, status_change");
-  }
-  $user_all_library_actions = (is_null($account) || user_access('administer transactions'));
+  $view_all_library_actions = ($display_all || user_access('administer transactions'));
   $actions = array();
-  while ($action = db_fetch_object($result)) {
-    if ($user_all_library_actions || user_access('submit library '. $action->name)) {
-      $actions[$action->aid] = array('name' => t($action->name), 'status_change' => $action->status_change);
+  if ($result) {
+    foreach ($result as $action) {
+      if ($view_all_library_actions || user_access('submit library '. $action->name)) {
+        $actions[$action->aid] = array('name' => t($action->name), 'status_change' => $action->status_change);
+      }
     }
   }
   return array_filter($actions);
@@ -1132,7 +846,7 @@ function library_actions($actions = NULL, $account = NULL) {
 function library_get_action($aid) {
   if (!empty($aid)) {
     if (is_numeric($aid)) {
-      $action = db_fetch_object(db_query('SELECT * FROM {library_actions} WHERE aid = %d', $aid));
+      $action = db_query('SELECT * FROM {library_actions} WHERE aid = :aid', array(':aid' => $aid));
       if ($action) {
         return $action;
       }
@@ -1148,8 +862,6 @@ function library_clean_action_name($name) {
 }
 
 function library_get_action_links($item) {
-  global $user;
-
   $aids = array();
   $secondary_aids = array();
   $actions = array();
@@ -1172,13 +884,14 @@ function library_get_action_links($item) {
       $aids[] = $aid;
     }
   }
-  $actions = library_actions($aids, $user);
+  $actions = library_actions($aids, FALSE);
   $action_links = array();
   
   $patron_uid = '';
-  global $user;
-  $librarian = user_access('administer transactions', $user) && user_access('access user profiles', $user);
+
+  $librarian = user_access('administer transactions') && user_access('access user profiles');
   if (!$librarian) {
+    global $user;
     $patron_uid = $user->uid;
   }
 
@@ -1201,24 +914,30 @@ function library_get_action_links($item) {
  *   An array of library items
  */ 
 function library_get_items_group_by_node() {
-  $count_select = "SELECT COUNT(*) FROM {node} WHERE status = 1 AND nid IN (SELECT nid from {library}) ORDER BY title";
-  $result = pager_query("SELECT nid FROM {node} WHERE status = 1 AND nid IN (SELECT nid from {library}) ORDER BY title", LIBRARY_RESULTS_PER_PAGE, 0, $count_select);
+  $select = db_select('library', 'l');  
+  $select->join('node', 'n', 'n.nid = l.nid'); 
+  $select->addField('n', 'nid');
+  $select->condition('n.status', 1); 
+  $select->orderBy('n.title');
+  $result = $select->extend('PagerDefault')->limit(50)->execute()->fetchField();
   $nodes = array();
-  while ($node = db_fetch_object($result)) {
-    $nodes[] = node_load($node->nid);
+  foreach ($result as $nid) {
+    $nodes[] = node_load($nid);
   }
   return $nodes;
 }
 
 function library_get_node_by_item_id($id) {
-  $result = db_result(db_query_range("SELECT nid FROM {library} WHERE id = %d", $id, 0, 1));
-  $node = node_load($result);
+  $result = db_query("SELECT nid FROM {library} WHERE id = :id", array(':id' => $id));
+  $record = $result->fetchField();
+  $node = node_load($record);
   return $node;
 }
 
 function library_get_item_by_barcode($barcode) {
-  $result = db_result(db_query_range("SELECT id FROM {library} WHERE barcode = '%s'", $barcode, 0, 1));
-  $item = library_load($result);
+  $result = db_query("SELECT id FROM {library} WHERE barcode = :barcode", array(':barcode' => check_plain($barcode . '')));
+  $record = $result->fetchField();
+  $item = library_load($record);
   return $item;
 }
 
@@ -1229,7 +948,7 @@ function library_get_item_by_barcode($barcode) {
  */
 function library_get_item_types($op = 'types') {
   $item_types = array();
-  foreach (node_get_types() as $type => $info) {
+  foreach (node_type_get_types() as $type => $info) {
     $var = variable_get('library_'. $type, 0);
     if ($var == 1) {
       if ($op == 'types') {
@@ -1251,7 +970,7 @@ function library_cron() {
   $last_update = variable_get('library_cron', 0);
   $next_update = $last_update + (24 * 60 * 60);
   
-  if (time() > $next_update && library_duedates_enabled() && variable_get('library_send_automatic_email', 0) == 1) {
+  if (REQUEST_TIME > $next_update && library_duedates_enabled() && variable_get('library_send_automatic_email', 0) == 1) {
     $records = library_get_overdue_items();
     if (!empty($records)) {
       $num_emails = 0;
@@ -1272,7 +991,7 @@ function library_cron() {
       }
       watchdog('library', '%number overdue email notifications sent successfully.', array('%number' => $num_emails));
     }
-    variable_set('library_cron', time());
+    variable_set('library_cron', REQUEST_TIME);
   }
 }
 
@@ -1301,17 +1020,6 @@ function library_autocomplete_input($item = NULL) {
   return $form;
 }
 
-function library_get_content_fields() {
-  $fields = array();
-  if (module_exists('content')) {
-    foreach (library_get_item_types() as $type) {
-      $fields[$type] = content_fields(NULL, $type);
-    }
-  }
-
-  return $fields;
-}
-
 function library_get_table_header() {
   $results = array();
   $display_cat_var = FALSE;
@@ -1324,29 +1032,9 @@ function library_get_table_header() {
   $results['display_status'] = variable_get('library_list_status_display', 0) == 1;
   $results['display_quantity'] = variable_get('library_quantity_display', 0) == 1;
 
-  $fields = array();
-  $content_fields = array();
-  if (module_exists('content')) {
-    $content_fields = library_get_content_fields();
-  }
-  
-  foreach ($content_fields as $type) {
-    foreach ($type as $field) {
-      if (!isset($fields[$field['field_name']]) && variable_get('library_display_field_'. $field['field_name'], 0) == 1) {
-        $fields[$field['field_name']] = $field;
-      }
-    }
-  }
-
   $header[]['data'] = t('Title');
   if ($results['display_categories']) {
     $header[]['data'] = t('Categories');
-  }
-
-  if (!empty($fields)) {
-    foreach ($fields as $field) {
-      $header[]['data'] = $field['widget']['label'];
-    }
   }
   
   if ($results['display_quantity']) {
@@ -1357,17 +1045,13 @@ function library_get_table_header() {
   }
 
   $results['header'] = $header;
-  $results['fields'] = $fields;
+
   return $results;
 }
 
 function library_get_table_row($node, $var) {
   $row = array();
   $rows = array();
-
-  if (!empty($var['fields'])) {
-    content_view($node);
-  }
 
   $row[] = l($node->title, 'node/'. $node->nid);
   if ($var['display_categories']) {
@@ -1390,15 +1074,6 @@ function library_get_table_row($node, $var) {
     }
     $row[] = implode(" | ", $categories);
   }
-  if (!empty($var['fields'])) {
-    foreach ($var['fields'] as $name => $field) {
-      $return = '';
-      if (isset($node->content[$field['field_name']])) { 
-        $return = drupal_render($node->content[$field['field_name']]);
-      }
-      $row[] = $return;
-    }
-  }
 
   if ($var['display_quantity']) {
     $row[] = library_get_quantity($node);
@@ -1417,7 +1092,7 @@ function library_get_table_row($node, $var) {
  */
 function library_views_api() {
   return array(
-    'api' => 2,
+    'api' => 2.0,
     'path' => drupal_get_path('module', 'library') . '/includes/views',
   );
 }
@@ -1428,23 +1103,23 @@ function library_views_api() {
 function library_theme() {
   return array(
     'library_admin_new_action' => array(
-      'arguments' => array('form' => NULL),
+      'render element' => 'form',
       'file' => 'library.theme.inc',
     ),
     'library_items' => array(
-      'arguments' => array('node' => NULL),
+      'variables' => array('items' => NULL),
       'file' => 'library.theme.inc',
     ),
     'library_items_field' => array(
-      'arguments' => array('form' => NULL),
+      'render element' => 'form',
       'file' => 'library.theme.inc',
     ),
   );
 }
 
 function library_get_quantity($node) {
-  if ($node->items) {
-    return count($node->items);
+  if ($node->library_items) {
+    return count($node->library_items);
   }
   else {
     return 0;
@@ -1452,10 +1127,10 @@ function library_get_quantity($node) {
 }
 
 function library_get_status_item($node) {
-  if ($node->items) {
+  if ($node->library_items) {
     $unavailable = array();
     $reference = array();
-    foreach ($node->items as $item) {
+    foreach ($node->library_items as $item) {
       if ($item['in_circulation'] == LIBRARY_CIRCULATION && $item['library_status'] == LIBRARY_ITEM_AVAILABLE) {
         return $item;
       }
@@ -1464,7 +1139,7 @@ function library_get_status_item($node) {
           $unavailable[$item['last_due_date']][] = $item;
         }
         else {
-          $unavailable[time()][] = $item;
+          $unavailable[REQUEST_TIME][] = $item;
         }
       }
       else {
@@ -1493,9 +1168,9 @@ function _library_mail_text($key, $language = NULL, $variables = array()) {
     // No override, return default string.
     switch ($key) {
       case 'notify_overdue_subject':
-        return t('Overdue Items for !patronname at !site', $variables, $langcode);
+        return t('Overdue Items for !patronname at !site', $variables);
       case 'notify_overdue_body':
-        return t("!patronname,\n\nThank you for using !site. You have one or more items that are overdue. You can find a list of overdue items below. \n\n!items\n\nPlease return these items as soon as possible. \n\nThank you!", $variables, $langcode);
+        return t("!patronname,\n\nThank you for using !site. You have one or more items that are overdue. You can find a list of overdue items below. \n\n!items\n\nPlease return these items as soon as possible. \n\nThank you!", $variables);
     }
   }
 }
@@ -1515,7 +1190,7 @@ function library_get_status_text($item) {
     $text = variable_get('library_available_text', 'AVAILABLE');
   }
   elseif ($item['library_status'] == LIBRARY_ITEM_UNAVAILABLE && !empty($item['last_due_date'])) {
-    $duedate = format_date($item['last_due_date'], 'small');
+    $duedate = format_date($item['last_due_date'], 'short');
     $text = 'DUE '. $duedate;
   }
   else {
@@ -1531,33 +1206,28 @@ function library_patron_autocomplete($string) {
   $matches = array();
   $result = NULL;
   if (module_exists('profile')) {
-    $profile_fields = db_query("SELECT fid, name FROM {profile_fields} WHERE type='textfield'"); 
     $fids = array();
-    while ($field = db_fetch_object($profile_fields)) {
+    $fields = db_query("select fid, name from {profile_fields} where type = :type", array(':type' => 'textfield'));
+    foreach ($fields as $field) {
       if (variable_get('library_profile_' . $field->name, 0) == 1) {
         $fids[] = $field->fid;
-        /*
-        if (!empty($fids)) {
-          $fids .= "OR fid='" . $field->fid . "'";
-        }
-        else {
-          $fids = "fid='" . $field->fid . "'";
-        }
-        */
       }
     }
     if (!empty($fids)) {
-      $fid_string = implode(',', $fids);
-      if(!empty($fid_string)){
-        $result = db_query_range("SELECT u.uid, CONCAT(pv.value,' (', u.name, ')') as name FROM {users} u JOIN (SELECT uid, GROUP_CONCAT(value SEPARATOR ', ' ) as value FROM {profile_values} WHERE fid IN (%s) GROUP BY (uid)) AS pv ON u.uid = pv.uid WHERE (LOWER(u.name) LIKE LOWER('%s%%') or LOWER(pv.value) LIKE LOWER('%%%s%%'))", $fid_string, check_plain($string), check_plain($string), 0, 10);
-      }
+      $result = db_query_range("SELECT u.uid, CONCAT(pv.value,' (', u.name, ')') as name FROM {users} u JOIN (SELECT uid, GROUP_CONCAT(value SEPARATOR ', ' ) as value FROM {profile_values} WHERE fid IN (:fids) GROUP BY (uid)) AS pv ON u.uid = pv.uid WHERE u.name LIKE :string or pv.value LIKE :string)", 0, 10, array(':fids' => $fids, ':string' => '%' . db_like(check_plain($string . '')) . '%'));
     }
   }
   if (empty($result)) {
-    $result = db_query_range("SELECT uid, name FROM {users} WHERE LOWER(name) LIKE LOWER('%%%s%%')", check_plain($string), 0, 10);
+    $select = db_select('users')
+      ->fields(array('uid', 'name'))
+      ->condition('status', 1) 
+      ->condition('name', '%' . db_like(check_plain($string . '')) . '%', 'LIKE')
+      ->orderBy('name') 
+      ->range(0, 10); 
+    $result = $select->execute()->fetchAll();
   }
 
-  while ($patron = db_fetch_object($result)) {
+  foreach ($result as $patron) {
         $matches[$patron->name .' [uid:'. $patron->uid .']'] = check_plain($patron->name);
   }
 

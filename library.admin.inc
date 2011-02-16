@@ -25,19 +25,6 @@ function library_admin_settings() {
     '#return_value' => 1,
     '#description' => t('This allows patron for a transaction to be selected without autocompletion. Will only work with Drupal username, so make sure the username is the barcode if using a barcode scanner.'),
   );
-  $form['library_unique_titles'] = array(
-    '#type' => 'checkbox',
-    '#title' => t('Check that Library Item Titles are Unique (Within a Given Content Type)'),
-    '#default_value' => variable_get('library_unique_titles', 0),
-    '#return_value' => 1,
-    '#description' => t('To display a warning if a title is a duplicate, check this box. This is highly recommended if you are not using barcodes.'),
-  );
-  $form['library_search_block'] = array(
-    '#type' => 'checkbox',
-    '#title' => t('Modify default search block to search library content.'),
-    '#default_value' => variable_get('library_search_block', 0),
-    '#return_value' => 1,
-  );
   $form['library_status_display'] = array(
     '#type' => 'checkbox',
     '#title' => t('Library Status'),
@@ -88,11 +75,10 @@ function library_admin_settings() {
     '#default_value' => variable_get('library_links_display_reference', array()),
     '#options' => $when_reference,
   );
-
   $form['library_item_list_display'] = array(
     '#type' => 'fieldset',
-    '#title' => t('Library Search Results Display'),
-    '#description' => t('The columns chosen below will be added to the node fields that you have selected to display.'),
+    '#title' => t('Library Default List Display'),
+    '#description' => t('The columns chosen below will be added to the node fields that you have selected to display. Note: consider using a custom view from the views module for this instead.'),
   );
   $form['library_item_list_display']['library_quantity_display'] = array(
     '#type' => 'checkbox',
@@ -106,16 +92,19 @@ function library_admin_settings() {
   );
   if (module_exists('taxonomy')) {
     $vocabularies = array();
-    foreach (taxonomy_get_vocabularies() as $vid => $vocab) {
-      $vocabularies[$vid] = $vocab->name;
+    $vocabs = taxonomy_get_vocabularies();
+    if ($vocabs) {
+      foreach ($vocabs as $vid => $vocab) {
+        $vocabularies[$vid] = $vocab->name;
+      }
+      $form['library_item_list_display']['library_taxonomy_display'] = array(
+        '#type' => 'checkboxes',
+        '#title' => t('Display Associated Taxonomy Terms in Library View'),
+        '#default_value' => variable_get('library_taxonomy_display', array()),
+        '#options' => $vocabularies,
+        '#description' => t('Select the vocabularies from which you would like to display taxonomy terms. If no vocabularies are selected, terms will not be displayed.'),
+      );
     }
-    $form['library_item_list_display']['library_taxonomy_display'] = array(
-      '#type' => 'checkboxes',
-      '#title' => t('Display Associated Taxonomy Terms in Library View'),
-      '#default_value' => variable_get('library_taxonomy_display', array()),
-      '#options' => $vocabularies,
-      '#description' => t('Select the vocabularies from which you would like to display taxonomy terms. If no vocabularies are selected, terms will not be displayed.'),
-    );
   }
   $form['library_text_display'] = array(
     '#type' => 'fieldset',
@@ -152,8 +141,8 @@ function library_admin_settings() {
       '#title' => t('Core Profile Fields'),
       '#description' => t('Choose profile fields to be used when using autocomplete to select a patron. Note: since profile fields do not allow for unique values, whatever unique identifier you are using (such as a barcode) should be the Drupal username. Barcode values below are included only to prevent data loss from previous versions of this module.'),
     );
-    $profile_fields = db_query("select title, name from {profile_fields} where type = 'textfield'");
-    while ($field = db_fetch_object($profile_fields)) {
+    $result = db_query("select title, name from {profile_fields} where type = :type", array(':type' => 'textfield'));
+    foreach ($result as $field) {
       $form['library_profile']['library_profile_' . $field->name] = array(
         '#type' => 'checkbox',
         '#title' => t($field->title . ' (' . $field->name . ')'),
@@ -272,10 +261,9 @@ function library_admin_action() {
     $action = library_get_action($aid);
     $show_delete = TRUE;
     if ($action && ($action->status_change > 0)) {
-      $result = db_result(db_query("SELECT COUNT(*) FROM {library_actions} WHERE status_change = '%d' AND aid <> %d", $action->status_change, $action->aid));
-      if ($result) {
-      }
-      else {
+      //Make sure the library always has at least one check in and one check out action
+      $row_number = db_query("SELECT aid FROM {library_actions} WHERE aid <> :aid AND status_change = :change", array(':aid' => $action->aid, ':change' => $action->status_change))->rowCount();	     
+      if ($row_number == 0) {
         $show_delete = FALSE;
       }
     }
@@ -343,12 +331,14 @@ function library_admin_action() {
 function library_admin_action_validate($form, &$form_state) {
   if ($form_state['values']['name']) {
     if ($form_state['values']['op'] == t('Save action')) {
-      if (db_result(db_query("SELECT COUNT(*) FROM {library_actions} WHERE name = '%s' AND aid <> %d", $form_state['values']['name'], $form_state['values']['aid']))) {
+      $row_number = db_query("SELECT aid FROM {library_actions} WHERE aid <> :aid AND name = :name", array(':aid' => $form_state['values']['aid'], ':name' => $form_state['values']['name']))->rowCount();	     
+      if ($row_number > 0) {
         form_set_error('name', t('The action name %name already exists. Please choose another action name.', array('%name' => $form_state['values']['name'])));
       }
     }
     elseif ($form_state['values']['op'] == t('Add action')) {
-      if (db_result(db_query("SELECT COUNT(*) FROM {library_actions} WHERE name = '%s'", $form_state['values']['name']))) {
+      $row_number = db_query("SELECT aid FROM {library_actions} WHERE name = :name", array(':name' => $form_state['values']['name']))->rowCount();	     
+      if ($row_number > 0) {
         form_set_error('name', t('The action name %name already exists. Please choose another action name.', array('%name' => $form_state['values']['name'])));
       }
     }
@@ -367,12 +357,22 @@ function library_admin_action_validate($form, &$form_state) {
  */
 function library_admin_action_submit($form, &$form_state) {
   if ($form_state['values']['op'] == t('Save action')) {
-    db_query("UPDATE {library_actions} SET name = '%s', status_change = %d WHERE aid = %d", check_plain($form_state['values']['name']), $form_state['values']['status_change'], $form_state['values']['aid']);
+    db_update('library_actions')
+  	  ->fields(array(
+  	    'name' => check_plain($form_state['values']['name']),
+  	    'status_change' => $form_state['values']['status_change'],
+  	  )) 
+      ->condition('aid', $form_state['values']['aid'])
+      ->execute(); 
     drupal_set_message(t('The action has been renamed.'));
   }
   elseif ($form_state['values']['op'] == t('Delete action')) {
-    db_query('DELETE FROM {library_actions} WHERE aid = %d', $form_state['values']['aid']);
-    db_query('DELETE FROM {library_transactions} WHERE action_aid = %d', $form_state['values']['aid']);
+    db_delete('library_actions')
+      ->condition('aid', $form_state['values']['aid'])
+      ->execute(); 
+    db_delete('library_transactions')
+      ->condition('action_aid', $form_state['values']['aid'])
+      ->execute(); 
     $available_display = variable_get('library_links_display_available', array());
     $unavailable_display = variable_get('library_links_display_unavailable', array());
     $reference_display = variable_get('library_links_display_reference', array());
@@ -394,10 +394,15 @@ function library_admin_action_submit($form, &$form_state) {
     drupal_set_message(t('The action has been deleted.'));
   }
   elseif ($form_state['values']['op'] == t('Add action')) {
-    db_query("INSERT INTO {library_actions} (name, status_change) VALUES ('%s', %d)", check_plain($form_state['values']['name']), $form_state['values']['status_change']);
+    db_insert('library_actions')
+  	  ->fields(array(
+  	    'name' => check_plain($form_state['values']['name']),
+  	    'status_change' => $form_state['values']['status_change'],
+  	  )) 
+      ->execute(); 
     drupal_set_message(t('The action has been added.'));
   }
-  $form_state['redirect'] = 'admin/settings/library/actions';
+  $form_state['redirect'] = 'admin/config/workflow/library/actions';
   return;
 }
 
@@ -407,14 +412,32 @@ function library_admin_action_submit($form, &$form_state) {
 function library_autocomplete($string) {
   $matches = array();
   if (variable_get('library_item_barcodes', LIBRARY_NO_BARCODES) == LIBRARY_BARCODES) {
-    $result = db_query_range("SELECT l.id, l.barcode, n.title FROM {node} n INNER JOIN {library} l ON n.nid = l.nid WHERE n.status = 1 AND l.barcode <> '' AND LOWER(l.barcode) LIKE LOWER('%s%%')", check_plain($string), 0, 10);
-    while ($item = db_fetch_object($result)) {
+    $select = db_select('library', 'l')
+      ->join('node', 'n', 'n.nid = l.nid')
+      ->fields('l', array('id', 'barcode'))
+      ->fields('n', array('title'))
+      ->condition('n.status', 1) 
+      ->condition('l.barcode', '', '<>')
+      ->condition('l.barcode', db_like(check_plain($string)) . '%', 'LIKE')
+      ->orderBy('l.barcode') 
+      ->range(0, 10); 
+    $results = $select->execute()->fetchAll();
+    foreach ($results as $item) {
       $matches[$item->barcode .' [title:'. $item->title .'] [id:'. $item->id .']'] = check_plain($item->barcode);
     }
   }
   else {
-    $result = db_query_range("SELECT DISTINCT l.id, n.title FROM {node} n INNER JOIN {library} l ON n.nid = l.nid WHERE n.status = 1 AND LOWER(n.title) LIKE LOWER('%s%%')", check_plain($string), 0, 10);
-    while ($item = db_fetch_object($result)) {
+    $select = db_select('library', 'l')
+      ->join('node', 'n', 'n.nid = l.nid')
+      ->fields('l', array('id'))
+      ->fields('n', array('title'))
+      ->condition('n.status', 1) 
+      ->condition('n.title', db_like(check_plain($string)) . '%', 'LIKE')
+      ->orderBy('n.title')
+      ->distinct() 
+      ->range(0, 10); 
+    $results = $select->execute()->fetchAll();
+    foreach ($results as $item) {
       $my_key = $item->title .' [id:'. $item->id .']';
       $matches[$my_key] = check_plain($my_key);
     }

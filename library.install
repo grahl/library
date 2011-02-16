@@ -10,43 +10,43 @@
  
 function library_schema() {
   $schema['library'] = array(
-    'description' => t('Determines if a library item may be checked out.'),
+    'description' => 'Determines if a library item may be checked out.',
     'fields' => array(
       'id' => array(
-        'description' => t('The primary identifier for a library item.'),
+        'description' => 'The primary identifier for a library item.',
         'type' => 'serial',
         'unsigned' => TRUE,
         'not null' => TRUE),
       'barcode' => array(
-        'description' => t('The barcode/identifier for this item.'),
+        'description' => 'The barcode/identifier for this item.',
         'type' => 'varchar',
         'length' => 60,
         'not null' => FALSE,
         'default' => ''),
       'nid' => array(
-        'description' => t('The node identifier.'),
+        'description' => 'The node identifier.',
         'type' => 'int',
         'unsigned' => TRUE,
         'not null' => TRUE),
       'in_circulation' => array(
-        'description' => t('Boolean indicating whether the item is in circulation.'),
+        'description' => 'Boolean indicating whether the item is in circulation.',
         'type' => 'int',
         'not null' => TRUE,
         'default' => 0),
       'library_status' => array(
-        'description' => t('Boolean indicating whether the item is available. Not directly editable.'),
+        'description' => 'Boolean indicating whether the item is available. Not directly editable.',
         'type' => 'int',
         'not null' => TRUE,
         'default' => 0),
       'notes' => array(
-        'description' => t('Short description field for additional comments about the item.'),
+        'description' => 'Short description field for additional comments about the item.',
         'type' => 'varchar',
         'length' => 256,
         'not null' => FALSE,
         'default' => ''),
       'created' => array(
         'type' => 'int',
-        'description' => t('Timestamp for when the item was created.'),
+        'description' => 'Timestamp for when the item was created.',
         'not null' => TRUE,
         'default' => 0),
      ),
@@ -56,48 +56,48 @@ function library_schema() {
     'primary key' => array('id'),
   );
   $schema['library_transactions'] = array(
-    'description' => t('The table where library transactions are stored.'),
+    'description' => 'The table where library transactions are stored.',
     'fields' => array(
       'tid' => array(
-        'description' => t('The primary identifier for a transaction.'),
+        'description' => 'The primary identifier for a transaction.',
         'type' => 'serial',
         'unsigned' => TRUE,
         'not null' => TRUE),
       'item_id' => array(
-        'description' => t('The associated library item.'),
+        'description' => 'The associated library item.',
         'type' => 'int',
         'unsigned' => TRUE,
         'not null' => TRUE),
       'nid' => array(
-        'description' => t('The associated library node.'),
+        'description' => 'The associated library node.',
         'type' => 'int',
         'unsigned' => TRUE,
         'not null' => TRUE),
       'uid' => array(
-        'description' => t('The associated patron user.'),
+        'description' => 'The associated patron user.',
         'type' => 'int',
         'unsigned' => TRUE,
         'not null' => TRUE,
         'default' => 0),
       'action_aid' => array(
-        'description' => t('The action performed.'),
+        'description' => 'The action performed.',
         'type' => 'int',
         'unsigned' => TRUE,
         'not null' => TRUE),
       'duedate' => array(
         'type' => 'int',
-        'description' => t('Timestamp for the current duedate.'),
+        'description' => 'Timestamp for the current duedate.',
         'not null' => FALSE,
         'default' => NULL),
       'notes' => array(
-        'description' => t('Short description field for additional comments about the transaction.'),
+        'description' => 'Short description field for additional comments about the transaction.',
         'type' => 'varchar',
         'length' => 256,
         'not null' => FALSE,
         'default' => NULL),
       'created' => array(
         'type' => 'int',
-        'description' => t('Timestamp for when transaction occurred.'),
+        'description' => 'Timestamp for when transaction occurred.',
         'not null' => TRUE,
         'default' => 0),
     ),
@@ -109,21 +109,21 @@ function library_schema() {
     'primary key' => array('tid'),
   );
   $schema['library_actions'] = array(
-    'description' => t('The table where library transactions are stored.'),
+    'description' => 'The table where library transactions are stored.',
     'fields' => array(
       'aid' => array(
-        'description' => t('The unique identifier of this action.'),
+        'description' => 'The unique identifier of this action.',
         'type' => 'serial',
         'unsigned' => TRUE,
         'not null' => TRUE),
       'name' => array(
-        'description' => t('The name of this action.'),
+        'description' => 'The name of this action.',
         'type' => 'varchar',
         'length' => 60,
         'not null' => TRUE,
         'default' => ''),
       'status_change' => array(
-        'description' => t('Indicates if the action changes item status.'),
+        'description' => 'Indicates if the action changes item status.',
         'type' => 'int',
         'unsigned' => TRUE,
         'not null' => TRUE,
@@ -138,27 +138,39 @@ function library_schema() {
  * Implementation of hook_install()
  */
 function library_install() {
-  drupal_install_schema('library');
-  db_query("INSERT INTO {library_actions} (name, status_change) VALUES ('%s', %d)", 'Check Out', 1);
-  db_query("INSERT INTO {library_actions} (name, status_change) VALUES ('%s', %d)", 'Check In', 2);
-  global $base_url;
+  $fields = array(
+    'name' => 'Check Out',
+    'status_change' => 1
+  );
+  try {
+    $return_value = db_insert('library_actions')
+      ->fields($fields)
+      ->execute(); 
+  }
+  catch (Exception $e) {
+    drupal_set_message(t('db_insert failed. Message = %message, query= %query', array('%message' => $e->getMessage(), '%query' => $e->query_string)), 'error');
+  } 
+  $fields = array(
+    'name' => 'Check In',
+    'status_change' => 2
+  );
+  try {
+    $return_value = db_insert('library_actions')
+      ->fields($fields)
+      ->execute(); 
+  }
+  catch (Exception $e) {
+    drupal_set_message(t('db_insert failed. Message = %message, query= %query', array('%message' => $e->getMessage(), '%query' => $e->query_string)), 'error');
+  } 
   // Notify of changes
-  drupal_set_message(st('Library module successfully installed. You can configure library settings <a href="@link">here</a>. To start creating library items, edit one or more content types to be included in the library.', array('@link' => $base_url .'/admin/settings/library')));
-
+  drupal_set_message(st('Library module successfully installed. You can configure library settings at admin/config/workflow/library. To start creating library items, edit one or more content types to be included in the library.'));
 }
 
 /**
  * Implementation of hook_uninstall().
  */
 function library_uninstall() {
-  foreach (library_get_content_fields() as $fields) {
-    foreach ($fields as $type) {
-      foreach ($type as $field) {
-        variable_del('library_display_field_'. $field['field_name']);
-      }
-    }
-  }
-  foreach (node_get_types() as $type => $info) {
+  foreach (node_type_get_types() as $type => $info) {
     variable_del('library_'. $type .'_due_dates');
     variable_del('library_'. $type);
     foreach (library_actions() as $key => $value) {
@@ -184,95 +196,9 @@ function library_uninstall() {
   variable_del('library_send_automatic_email');
   variable_del('library_mail_notify_overdue_subject');
   variable_del('library_mail_notify_overdue_body');
-  drupal_uninstall_schema('library');
 
   // Clear the cache tables.
-  cache_clear_all(null, 'cache');
-  cache_clear_all(null, 'cache_filter');
-  cache_clear_all(null, 'cache_menu');
-  cache_clear_all(null, 'cache_page');
+  cache_clear_all();
 
   drupal_set_message(st('Library module successfully uninstalled'));
 }
-
-function library_update_6201() {
-  $ret = array();
-  if (module_exists('patron')) {
-    $empty_patrons = db_result(db_query("SELECT COUNT(*) FROM {library_patrons} WHERE patron_uid IS NULL OR patron_uid = 0"));
-  
-    //don't attempt to do the upgrade if patrons aren't users
-    if (variable_get('patron_is_user', 0) == 0 || $empty_patrons > 0) {
-      drupal_set_message(t('This module update eliminates the patron module and replaces patrons with Drupal users. Please return to <a href="@patron-settings">patron settings</a> and check Associate Library Patrons with Drupal Users. Then, create associated users for all existing patrons with the same e-mail address used in the patron node. After resaving the associated patrons, try this update again.', array('@patron-settings' => base_path() .'admin/settings/library/patrons')), 'warning', FALSE);
-      $ret['#abort'] = array('success' => FALSE, 'query' => t('Library module has updates, but updating would currently result in data loss.'));
-      return $ret;
-    }
-    $uids = db_result(db_query("SELECT COUNT(*) FROM {library_patrons} WHERE patron_uid IS NOT NULL"));
-
-    // only import patron data if patrons exist
-    if ($uids > 0 ) {
-      if (!module_exists('profile')) {
-        //enable the core profile module to store the patron information
-        drupal_install_modules(array('profile'));
-      }
-      $ret[] = update_sql("INSERT INTO {profile_fields} (title, name, explanation, category, type, page, visibility) VALUES ('First name','profile_patron_name_first','Imported from the patron module.', 'Library', 'textfield', '', 1)");
-      $ret[] = update_sql("INSERT INTO {profile_fields} (title, name, explanation, category, type, page, visibility) VALUES ('Last name','profile_patron_name_last','Imported from the patron module.', 'Library', 'textfield', '', 1)");
-      $ret[] = update_sql("INSERT INTO {profile_fields} (title, name, explanation, category, type, page, visibility) VALUES ('Barcode','profile_patron_barcode', 'Imported from the patron module.', 'Library', 'textfield', '', 1)");
-    }
-    cache_clear_all();
-    menu_rebuild();
-  }
-  return $ret;
-}
-
-function library_update_6202() {
-  $ret = array();
-  if (module_exists('patron')) {
-    //Transfer patron info associated with users to profile fields
-    $patrons = db_query("SELECT * FROM {library_patrons} p, {users} u WHERE p.patron_uid = u.uid AND p.patron_uid IS NOT NULL");
-    if (module_exists('profile')) {
-      while ($patron = db_fetch_object($patrons)) {
-        $patron_user = user_load(array('uid' => $patron->patron_uid)); 
-        $data=array(
-          'profile_patron_name_last' => $patron->name_last,
-          'profile_patron_name_first' => $patron->name_first,
-          'profile_patron_barcode' => $patron->barcode
-        );
-
-        $successful = user_save($patron_user, $data, 'Library');
-        if (!$successful) {
-          watchdog('Library','Patron conversion of @name failed', array('@name' => $patron->name_first .' '. $patron->name_last));
-        }
-        else {
-          watchdog('Library','Patron @name converted to profile fields.', array('@name' => $patron->name_first .' '. $patron->name_last));
-        }
-      }
-    }
-  }
-  return $ret;
-}
-
-function library_update_6203() {
-  $ret = array();
-  if (module_exists('patron')) {
-    //Insert patron uids into transactions table
-    $ret[] = update_sql("UPDATE {library_transactions} lt JOIN {library_patrons} lp on lt.patron_id = lp.nid SET lt.patron_id = lp.patron_uid");
-  
-    //Schema update to transactions table
-    db_drop_index($ret, 'library_transactions', 'patron_id');
-    $spec = array('description' => t('The associated patron user.'), 'type' => 'int','unsigned' => TRUE,'not null' => TRUE, 'default' => 0);
-    db_change_field($ret, 'library_transactions', 'patron_id', 'uid', $spec);
-    db_add_index($ret, 'library_transactions', 'uid', array('uid'));
-  }
-  return $ret;
-}
-
-function library_update_6204() {
-  if (module_exists('patron')) {
-    module_disable(array('patron'));
-    drupal_uninstall_module('patron');
-    cache_clear_all();
-    menu_rebuild();
-  }
-  return array();
-}
-

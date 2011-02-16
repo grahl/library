@@ -28,21 +28,20 @@ function theme_library_admin_new_action($form) {
       default:
         $status_text = 'No Change';
     }
-    $rows[] = array($action['name'], $status_text, l(t('edit action'), 'admin/settings/library/actions/edit/'. $aid));
+    $rows[] = array($action['name'], $status_text, l(t('edit action'), 'admin/config/workflow/library/actions/edit/'. $aid));
   }
   $rows[] = array(drupal_render($form['name']), drupal_render($form['status_change']), drupal_render($form['submit']));
 
   $output = drupal_render($form);
-  $output .= theme('table', $header, $rows);
+  $output .= theme('table', array('header' => $header, 'rows' => $rows));
 
   return $output;
 }
 
-function theme_library_items($node) {
+function theme_library_items($items) {
   $barcodes = (variable_get('library_item_barcodes', LIBRARY_NO_BARCODES) == LIBRARY_BARCODES);
   $display_status = (variable_get(library_status_display, 0) == 1);
   
-  $items = $node->items;
   $header = array(t('Copy'));
   if ($barcodes) {
     $header[] = t('Barcode');
@@ -67,7 +66,7 @@ function theme_library_items($node) {
       $rows[] = $temp_array;
     }
   }
-  return theme('table', $header, $rows);
+  return theme('table', array('header' => $header, 'rows' => $rows));
 }
 
 
@@ -77,23 +76,20 @@ function theme_library_items($node) {
  * @ingroup themeable
  */
 function theme_library_items_field($form) {
-  // Change the button title to reflect the behavior when using JavaScript.
-  drupal_add_js('if (Drupal.jsEnabled) { $(document).ready(function() { $("#edit-library-more").val("'. t('Add an Item') .'"); }); }', 'inline');
-
   $barcodes = variable_get('library_item_barcodes', LIBRARY_NO_BARCODES) == LIBRARY_BARCODES;
 
   $rows = array();
 
   if ($barcodes) {
-    $headers[] = t('Barcode');
+    $header[] = t('Barcode');
   }
   else {
-    $headers[] = t('Copy');
+    $header[] = t('Copy');
   }
   $headers[] = t('Reference Only');
-  $headers[] = t('Notes');
-  $headers[] = t('');
-  $headers[] = t('Delete');
+  $header[] = t('Notes');
+  $header[] = t('');
+  $header[] = t('Delete');
 
   foreach (element_children($form) as $key) {
     // No need to print the field title every time.
@@ -127,7 +123,7 @@ function theme_library_items_field($form) {
     $row = array();
   }
 
-  $output = theme('table', $headers, $rows);
+  $output = theme('table', array('header' => $header, 'rows' => $rows));
   $output .= drupal_render($form);
   return $output;
 }

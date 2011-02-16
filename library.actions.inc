@@ -9,58 +9,38 @@
 /**
  * Implementation of hook_hook_info()
  */
-function library_hook_info() {
-  $op = array();
+function library_trigger_info() {
+  $triggers = array();
   foreach (library_actions() as $aid => $action) {
-    $op['after_'. library_clean_action_name($action['name'])] = array('runs when' => t('After a '. $action['name']));
+    $triggers['library_after_'. library_clean_action_name($action['name'])] = array('label' => t('After a '. $action['name']));
   }
   
   return array(
-    'library' => array(
-      'library' => $op
-    )
+    'library' => $triggers
   );
-}
-
-/**
- * Since the library hooks are generated dynamically based on the list of library actions,
- * it's necessary to call the list of actions directly.
- * This generates a list of actions for the given trigger that are then called by actions_do()
- */
-function _library_get_hook_aids($hook, $op = '') {
-  $aids = array();
-  $result = db_query("SELECT aa.aid, a.type FROM {trigger_assignments} aa LEFT JOIN {actions} a ON aa.aid = a.aid WHERE aa.hook = '%s' AND aa.op = '%s' ORDER BY weight", $hook, $op);
-  while ($action = db_fetch_object($result)) {
-    $aids[] = $action->aid;
-  }
-  return $aids;
 }
 
 /**
  * Implementation of hook_action_info().
  */
 function library_action_info() {
-  $hooks = array();
+  $triggers = array();
   foreach (library_actions() as $aid => $action) {
-    $hooks[] = 'after_'. library_clean_action_name($action['name']);
+    $triggers[] = 'library_after_'. library_clean_action_name($action['name']);
   }
 
   return array(
     'library_send_email_action' => array(
-      'description' => t('Send Library e-mail'),
+      'label' => t('Send Library e-mail'),
       'type' => 'library',
       'configurable' => TRUE,
-      'hooks' => array(
-        'library' => $hooks,
-      )
+      'triggers' => $triggers
     ),
     'library_renew_action' => array(
-      'description' => t('Extend Library Item Due Date'),
+      'label' => t('Extend Library Item Due Date'),
       'type' => 'library',
       'configurable' => FALSE,
-      'hooks' => array(
-        'library' => $hooks,
-      )
+      'triggers' => $triggers
     ),
   );
 }
@@ -81,9 +61,12 @@ function library_renew_action(&$object, $context = array()) {
     $clean = library_clean_action_name($item_obj->last_transaction_name);
     $period = variable_get('library_period_for_'. $type .'_'. $clean, 0);
     if ($period > 0) {
-      $duedate = library_get_due_date(time(), $clean, $type);
+      $duedate = library_get_due_date(REQUEST_TIME, $clean, $type);
       if ($duedate) {
-        db_query("UPDATE {library_transactions} SET duedate = %d WHERE tid = %d", $duedate, $item_obj->last_transaction_id);
+        db_update('library_transactions')
+          ->fields(array('duedate' => $duedate))
+          ->condition('tid', $item_obj->last_transaction_id)
+          ->execute(); 
         watchdog('library', '%name renewed %item [ID: %item_id ].', array('%name' => check_plain($patron['name']), '%item' => check_plain($item['title']), '%item_id' => $item['id']));
       }
     }

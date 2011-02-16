@@ -110,7 +110,7 @@ function library_transaction_form(&$form_state, $aid, $item = NULL) {
       '#type' => 'textfield',
       '#title' => t('Patron'),
       '#default_value' => ($patron ? $patron->name .' [uid:'. $patron->uid .']' : ''),
-      '#autocomplete_path' => 'patrons/autocomplete',
+      '#autocomplete_path' => 'library-items/patrons/autocomplete',
       '#required' => TRUE
     );
   }
@@ -151,7 +151,7 @@ function library_transaction_form_validate($form, &$form_state) {
       }
     }
     elseif ($autocomplete_disabled && !empty($form_state['values']['patron_uid'])) {
-      $patron = user_load(array('name' => $form_state['values']['patron_uid']));
+      $patron = user_load_by_name($form_state['values']['patron_uid']);
       if (empty($patron)) {
         form_set_error('patron_uid', t('Library Patron: Could not find a corresponding Drupal user.'));
       }
@@ -230,7 +230,7 @@ function library_transaction_form_validate($form, &$form_state) {
  * @see library_transaction_form()
  */
 function library_transaction_form_submit($form, &$form_state) {
-  $now = time();
+  $now = REQUEST_TIME;
   $duedate = NULL;
   $clean = library_clean_action_name($form_state['values']['action_name']);
   if ($form_state['values']['action_status_change'] == LIBRARY_ACTION_TYPE_UNAVAILABLE) {
@@ -244,24 +244,39 @@ function library_transaction_form_submit($form, &$form_state) {
   elseif ($form_state['values']['action_status_change'] == LIBRARY_ACTION_TYPE_AVAILABLE) {
     $new_status = LIBRARY_ITEM_AVAILABLE;   
   }
-  db_query("INSERT {library_transactions} (nid, item_id, uid, action_aid, duedate, notes, created) VALUES (%d, %d, %d, %d, %d, '%s', %d)", $form_state['values']['nid'], $form_state['values']['item_id'], $form_state['values']['patron_uid'], $form_state['values']['action_aid'], $duedate, check_plain($form_state['values']['notes']), $now);
+  db_insert('library_transactions')
+    ->fields(array(
+      'nid' => $form_state['values']['nid'], 
+      'item_id' => $form_state['values']['item_id'],
+      'uid' => $form_state['values']['patron_uid'], 
+      'action_aid' => $form_state['values']['action_aid'],
+      'duedate' => $duedate, 
+      'notes' => check_plain($form_state['values']['notes']),
+      'created' => $now,
+    ))
+    ->execute(); 
   if ($form_state['values']['action_status_change'] > LIBRARY_ACTION_NO_CHANGE) {
-    db_query("UPDATE {library} set library_status = %d WHERE id = %d", $new_status, $form_state['values']['item_id']);
+    db_update('library')
+      ->fields(array('library_status' => $new_status))
+      ->condition('id', $form_state['values']['item_id'])
+      ->execute(); 
   }
 
-  drupal_set_message(t('The '. $form_state['values']['action_name'] .' was successful.'));
+  drupal_set_message(t('The ' . check_plain($form_state['values']['action_name']) . ' was successful.'));
   if (module_exists('trigger')) {
     $transaction_id = db_last_insert_id('library_transactions', 'tid');
+    $object = NULL;
     $context = array();
-    $object = (object) $context;
+    $context['group'] = 'library';
     $context['item'] = array(
       'id' => $form_state['values']['item_id'], 'nid' => $form_state['values']['nid'], 'title' => $form_state['values']['item_name'], 'barcode' => $form_state['values']['barcode'], 'node_type' => $form_state['values']['node_type']
     );
     $context['transaction'] = array('id' => $transaction_id, 'action_name' => $form_state['values']['action_name'], 'aid' => $form_state['values']['action_aid'], 'notes' => check_plain($form_state['values']['notes']), 'duedate' => $duedate, 'created' => $now);
     $context['patron'] = array('name' => $form_state['values']['patron_name'], 'mail' => $form_state['values']['patron_email'], 'uid' => $form_state['values']['patron_uid']);
-    $actions = _library_get_hook_aids('library', 'after_'. $clean);
-    if (!empty($actions)) {
-      actions_do($actions, $object, $context);
+    $aids = trigger_get_assigned_actions('library_after_' . $clean);
+    if (!empty($aids)) {
+      $context['hook'] = 'library_after_' . $clean;
+      actions_do(array_keys($aids), $object, $context);
     }
   }
   $form_state['redirect'] = 'node/'. $form_state['values']['nid'];
@@ -287,7 +302,7 @@ function library_transaction_view($tid) {
     if (!empty($transaction->notes)) {
       $list[] = $transaction->notes;
     }
-    return theme('item_list', $list);
+    return theme('item_list', array('items' => $list));
   }
   else {
     drupal_set_message(t('No transaction found.'), array());
@@ -300,7 +315,7 @@ function library_transaction_view($tid) {
 function library_history($node) { 
   $duedate_enabled = library_duedates_enabled($node->type);  
 
-  if (library_item_in_library($node)) {
+  if (variable_get('library_'. $node->type, LIBRARY_ITEM_NOT_IN_LIBRARY) == LIBRARY_ITEM_IN_LIBRARY) {
     $header = array(t('Date'), t('Transaction'), t('Notes'));
     if (user_access('access user profiles')) {
       $header[] = t('Patron');
@@ -361,7 +376,7 @@ function library_history($node) {
           $last_item = $cur_item;
         }
       }
-      return theme('table', $header, $rows);
+      return theme('table', array('header' => $header, 'rows' => $rows));
     }
     else {
       return "<p>No actions have been performed on this item.</p>";
@@ -429,7 +444,7 @@ function library_history_user($patron) {
       $rows[] = $temp_array;
       $last_item = $cur_item;
     }
-    return theme('table', $header, $rows);
+    return theme('table', array('header' => $header, 'rows' => $rows));
   }
   else {
     return "<p>This user has not performed any library actions.</p>";
@@ -448,8 +463,8 @@ function library_display_items() {
       $rows[] = $row;
     }
   }
-  $output = theme('table', $header, $rows, array('class' => 'library-list'));
-  $output .= theme('pager', NULL, LIBRARY_RESULTS_PER_PAGE);
+  $output = theme('table', array('header' => $header, 'rows' => $rows, 'attributes' => array('class' => 'library-list')));
+  $output .= theme('pager');
   return $output;
 }
 
@@ -473,8 +488,8 @@ function library_overdue_items() {
           $item = array();
         }
       }
-      $output = theme('table', $header, $rows);
-      $output .= theme('pager', NULL, LIBRARY_RESULTS_PER_PAGE, 0);
+      $output = theme('table', array('header' => $header, 'rows' => $rows));
+      $output .= theme('pager');
       return $output;
     }
   }
