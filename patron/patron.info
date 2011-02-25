@@ -1,4 +1,3 @@
-; $Id$
 name 		= "Patron"
 description 	= "DEPRECATED. Do not install."
 package 	= Library

@@ -1,4 +1,3 @@
-; $Id$
 name 		= "Library"
 description 	= "Include content types in a library. Core Trigger and Views are recommended."
 package 	= Library

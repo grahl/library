@@ -1,5 +1,4 @@
 <?php
-// $Id$
 
 if (module_exists('trigger')) {
   include_once(drupal_get_path('module', 'library') .'/library.actions.inc');
