@@ -261,7 +261,7 @@ function library_transaction_form_submit($form, &$form_state) {
       ->execute(); 
   }
 
-  drupal_set_message(t('The ' . check_plain($form_state['values']['action_name']) . ' was successful.'));
+  drupal_set_message(t('The @action was successful.', array('@action' => $form_state['values']['action_name'])));
   if (module_exists('trigger')) {
     $transaction_id = db_last_insert_id('library_transactions', 'tid');
     $object = NULL;
