@@ -561,10 +561,10 @@ function library_node_insert($node) {
           $nid = db_insert('library')
             ->fields(array(
               'nid' => $node->nid,
-              'barcode' => check_plain($item->barcode . ''),
-              'in_circulation' => $item->in_circulation,
+              'barcode' => check_plain($item['barcode'] . ''),
+              'in_circulation' => $item['in_circulation'],
               'library_status' => LIBRARY_ITEM_AVAILABLE,
-              'notes' => check_plain($item->notes . ''),
+              'notes' => check_plain($item['notes'] . ''),
               'created' => REQUEST_TIME
             ))
             ->execute();
