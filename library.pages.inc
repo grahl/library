@@ -328,9 +328,8 @@ function library_history($node) {
     $transactions = library_get_transactions_by_node($node);
 
     if (!empty($transactions[0])) {
-      foreach ($transactions as $value) {
+      foreach ($transactions as $transaction) {
         $last_item = '';
-        foreach ($value as $transaction) {
           $detail_link = '';
           $action_link = '';
           $cur_item = $transaction->item_id;
@@ -373,7 +372,7 @@ function library_history($node) {
           }
           $rows[] = $temp_array;
           $last_item = $cur_item;
-        }
+        
       }
       return theme('table', array('header' => $header, 'rows' => $rows));
     }
