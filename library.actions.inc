@@ -58,7 +58,7 @@ function library_renew_action(&$object, $context = array()) {
 
     $type = $item_obj->type;
     $clean = library_clean_action_name($item_obj->last_transaction_name);
-    $period = variable_get('library_period_for_' . $type .'_' . $clean, 0);
+    $period = variable_get('library_period_for_' . $type . '_' . $clean, 0);
     if ($period > 0) {
       $duedate = library_get_due_date(REQUEST_TIME, $clean, $type);
       if ($duedate) {
@@ -80,8 +80,8 @@ function library_mail($key, &$message, $params) {
   switch ($key) {
     case 'notify_overdue':
       $variables = library_mail_tokens($params, $language);
-      $message['subject'] .= _library_mail_text($key .'_subject', $language, $variables);
-      $message['body'][] = _library_mail_text($key .'_body', $language, $variables);
+      $message['subject'] .= _library_mail_text($key . '_subject', $language, $variables);
+      $message['body'][] = _library_mail_text($key . '_body', $language, $variables);
       break;
     case 'action_send_email':
       $context = $params['context'];
@@ -209,7 +209,7 @@ function library_send_email_action(&$object, $context) {
 function library_mail_tokens($params, $language) {
   $items = '';
   foreach ($params['items'] as $id => $values) {
-    $items .= $values['item_name'] .' (Due ' . format_date($values['due_date'], 'short') . ') ';
+    $items .= $values['item_name'] . ' (Due ' . format_date($values['due_date'], 'short') . ') ';
   }
   $tokens = array(
     '!patronname' => $params['patron']['patron_name'],

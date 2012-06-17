@@ -26,12 +26,12 @@ function library_transaction_form(&$form_state, $aid, $item = NULL) {
       drupal_set_title($action->name);
     }
     else {
-      drupal_set_message('Invalid action.', 'error');
+      drupal_set_message(t('Invalid action.'), 'error');
       drupal_goto('');
     }
   }
   else {
-    drupal_set_message('No action was selected.', 'error');
+    drupal_set_message(t('No action was selected.'), 'error');
     drupal_goto('');
   }
 
@@ -91,12 +91,12 @@ function library_transaction_form(&$form_state, $aid, $item = NULL) {
       $form['patron_change_link'] = array(
         '#type' => 'item',
         '#value' => 'Change Patron',
-        '#prefix' => '<a href="' . url($link) .'">',
+        '#prefix' => '<a href="' . url($link) . '">',
         '#suffix' => '</a>',
       );
     }
   }
-  elseif (variable_get('library_disable_patron_autocomplete', 0) == 1){
+  elseif (variable_get('library_disable_patron_autocomplete', 0) == 1) {
     $form['patron_uid'] = array(
       '#type' => 'textfield',
       '#title' => t('Patron'),
@@ -108,7 +108,7 @@ function library_transaction_form(&$form_state, $aid, $item = NULL) {
     $form['patron_uid'] = array(
       '#type' => 'textfield',
       '#title' => t('Patron'),
-      '#default_value' => ($patron ? $patron->name .' [uid:' . $patron->uid .']' : ''),
+      '#default_value' => ($patron ? $patron->name . ' [uid:' . $patron->uid . ']' : ''),
       '#autocomplete_path' => 'library-items/patrons/autocomplete',
       '#required' => TRUE
     );
@@ -234,7 +234,7 @@ function library_transaction_form_submit($form, &$form_state) {
   $clean = library_clean_action_name($form_state['values']['action_name']);
   if ($form_state['values']['action_status_change'] == LIBRARY_ACTION_TYPE_UNAVAILABLE) {
     $type = $form_state['values']['node_type'];
-    $period = variable_get('library_period_for_' . $type .'_' . $clean, 0);
+    $period = variable_get('library_period_for_' . $type . '_' . $clean, 0);
     if ($period > 0) {
       $duedate = library_get_due_date($now, $clean, $type);
     }
@@ -286,11 +286,11 @@ function library_transaction_view($tid) {
   global $user;
   $transaction = library_get_transaction_by_tid($tid);
   if (isset($transaction)) {
-    $list[] = t("Date: @action_date", array('@action_date' => format_date($transaction->created, 'custom', 'M j, Y')));
-    $list[] = t("Item: ". l($transaction->item_name, 'node/' . $transaction->nid));
-    $list[] = t("Action: @action", array('@action' => $transaction->action_name));
+    $list[] = t('Date: @action_date', array('@action_date' => format_date($transaction->created, 'custom', 'M j, Y')));
+    $list[] = t('Item: ' . l($transaction->item_name, 'node/' . $transaction->nid));
+    $list[] = t('Action: @action', array('@action' => $transaction->action_name));
     if (user_access('access user profiles', $user)) {
-      $list[] = t("Patron: ". l($transaction->username, 'user/' . $transaction->uid));
+      $list[] = t('Patron: ' . l($transaction->username, 'user/' . $transaction->uid));
     }
     else {
       $list[] = t("Patron: N/A");
@@ -342,7 +342,7 @@ function library_history($node) {
             $duedate = '';
           }
           if (user_access('administer transactions')) {
-            $detail_link = l('View Details', 'library-items/transaction/view/' . $transaction->tid);
+            $detail_link = l(t('View Details'), 'library-items/transaction/view/' . $transaction->tid);
           }
           if ($cur_item <> $last_item) {
             $item = array('id' => $transaction->item_id, 'library_status' => $transaction->library_status, 'last_patron_uid' => $transaction->uid, 'in_circulation' => $transaction->in_circulation);
@@ -360,7 +360,7 @@ function library_history($node) {
             $temp_array[] = $duedate;
           }
           if (!empty($detail_link) && !empty($action_link)) {
-            $temp_array[] = $detail_link .' | ' . $action_link;
+            $temp_array[] = $detail_link . ' | ' . $action_link;
           }
           elseif (!empty($action_link)) {
             $temp_array[] = $action_link;
@@ -415,7 +415,7 @@ function library_history_singleuser($patron) {
         $duedate = '';
       }
       if (user_access('administer transactions', $user)) {
-        $detail_link = l('View Details', 'library-items/transaction/view/' . $transaction->tid);
+        $detail_link = l(t('View Details'), 'library-items/transaction/view/' . $transaction->tid);
       }
       if ($cur_item <> $last_item) {
         $item = array('id' => $transaction->item_id, 'library_status' => $transaction->library_status, 'last_patron_uid' => $transaction->uid, 'in_circulation' => $transaction->in_circulation);
@@ -429,7 +429,7 @@ function library_history_singleuser($patron) {
         $temp_array[] = $duedate;
       }
       if (!empty($detail_link) && !empty($action_link)) {
-        $temp_array[] = $detail_link .' | ' . $action_link;
+        $temp_array[] = $detail_link . ' | ' . $action_link;
       }
       elseif (!empty($action_link)) {
         $temp_array[] = $action_link;
@@ -483,7 +483,7 @@ function library_overdue_items() {
           $item = array('library_status' => LIBRARY_ITEM_UNAVAILABLE, 'id' => $id, 'last_patron_uid' => $patron_id, 'in_circulation' => $values['in_circulation']);
           $links = implode(" | ", library_get_action_links($item));
 
-          $rows[] = array($values['item_name'], $patron_name, format_date($values['due_date'], 'small'), l('Item Details', 'node/' . $values['nid']) .' | ' . $links);
+          $rows[] = array($values['item_name'], $patron_name, format_date($values['due_date'], 'small'), l(t('Item Details'), 'node/' . $values['nid']) . ' | ' . $links);
           $item = array();
         }
       }

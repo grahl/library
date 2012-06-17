@@ -164,14 +164,14 @@ function library_admin_settings_overdue() {
     foreach (library_actions() as $aid => $action) {
       if ($action['status_change'] == LIBRARY_ACTION_TYPE_UNAVAILABLE) {
         $clean = library_clean_action_name($action['name']);
-        $input_name = 'library_period_for_' . $type .'_' . $clean;
+        $input_name = 'library_period_for_' . $type . '_' . $clean;
         $form[$input_name] = array(
           '#type' => 'fieldset',
-          '#title' => t($type .' ' . $action['name'] .' Period'),
+          '#title' => t($type . ' ' . $action['name'] . ' Period'),
           '#description' => t('The maximum time a patron may %action a %type . Days and hours are combined into one value. Enter a whole number greater than 0 in days or hours if you want to have duedates for this item type with this action.', array('%type' => $type, '%action' => $action['name'])),
           '#attributes' => array('class' => 'check-out-period-fieldset'),
         );
-        $input_name_days = 'library_days_for_' . $type .'_' . $clean;
+        $input_name_days = 'library_days_for_' . $type . '_' . $clean;
         $form[$input_name][$input_name_days] = array(
           '#type' => 'textfield',
           '#title' => t('Days'),
@@ -179,7 +179,7 @@ function library_admin_settings_overdue() {
           '#size' => 3,
           '#maxlength' => 3,
         );
-        $input_name_hours = 'library_hours_for_' . $type .'_' . $clean;
+        $input_name_hours = 'library_hours_for_' . $type . '_' . $clean;
         $form[$input_name][$input_name_hours] = array(
           '#type' => 'textfield',
           '#title' => t('Hours'),
@@ -225,8 +225,8 @@ function library_admin_settings_overdue_validate($form, &$form_state) {
     foreach (library_actions() as $aid => $action) {
       if ($action['status_change'] == LIBRARY_ACTION_TYPE_UNAVAILABLE) {
         $clean = library_clean_action_name($action['name']);
-        $input_name_days = 'library_days_for_' . $type .'_' . $clean;
-        $input_name_hours = 'library_hours_for_' . $type .'_' . $clean;
+        $input_name_days = 'library_days_for_' . $type . '_' . $clean;
+        $input_name_hours = 'library_hours_for_' . $type . '_' . $clean;
         if (!is_numeric($form_state['values'][$input_name_days])) {
           form_set_error($input_name_days, t('Days must be a number.'));
         }
@@ -357,10 +357,10 @@ function library_admin_action_validate($form, &$form_state) {
 function library_admin_action_submit($form, &$form_state) {
   if ($form_state['values']['op'] == t('Save action')) {
     db_update('library_actions')
-  	  ->fields(array(
-  	    'name' => check_plain($form_state['values']['name']),
-  	    'status_change' => $form_state['values']['status_change'],
-  	  ))
+      ->fields(array(
+        'name' => check_plain($form_state['values']['name']),
+        'status_change' => $form_state['values']['status_change'],
+      ))
       ->condition('aid', $form_state['values']['aid'])
       ->execute();
     drupal_set_message(t('The action has been renamed.'));
@@ -394,10 +394,10 @@ function library_admin_action_submit($form, &$form_state) {
   }
   elseif ($form_state['values']['op'] == t('Add action')) {
     db_insert('library_actions')
-  	  ->fields(array(
-  	    'name' => check_plain($form_state['values']['name']),
-  	    'status_change' => $form_state['values']['status_change'],
-  	  ))
+      ->fields(array(
+        'name' => check_plain($form_state['values']['name']),
+        'status_change' => $form_state['values']['status_change'],
+      ))
       ->execute();
     drupal_set_message(t('The action has been added.'));
   }
@@ -422,7 +422,7 @@ function library_autocomplete($string) {
       ->range(0, 10);
     $results = $select->execute()->fetchAll();
     foreach ($results as $item) {
-      $matches[$item->barcode .' [title:' . $item->title . '] [id:' . $item->id . ']'] = check_plain($item->barcode);
+      $matches[$item->barcode . ' [title:' . $item->title . '] [id:' . $item->id . ']'] = check_plain($item->barcode);
     }
   }
   else {
@@ -437,7 +437,7 @@ function library_autocomplete($string) {
       ->range(0, 10);
     $results = $select->execute()->fetchAll();
     foreach ($results as $item) {
-      $my_key = $item->title .' [id:' . $item->id . ']';
+      $my_key = $item->title . ' [id:' . $item->id . ']';
       $matches[$my_key] = check_plain($my_key);
     }
   }
@@ -462,7 +462,7 @@ function library_notify_overdue() {
         watchdog('library', 'Overdue notice sent to %email', array('%email' => $params['patron']['patron_email']));
         $num_emails++;
       }
-      drupal_set_message(t('@number email(s) sent successfully.',array('@number' => $num_emails)));
+      drupal_set_message(t('@number email(s) sent successfully.', array('@number' => $num_emails)));
       watchdog('library', '%number overdue email notifications sent successfully.', array('%number' => $num_emails));
     }
   }

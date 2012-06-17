@@ -147,7 +147,7 @@ function library_install() {
       ->execute();
   }
   catch (Exception $e) {
-    drupal_set_message(t('db_insert failed. Message = %message, query= %query', array('%message' => $e->getMessage(), '%query' => $e->query_string)), 'error');
+    drupal_set_message(st('db_insert failed. Message = %message, query= %query', array('%message' => $e->getMessage(), '%query' => $e->query_string)), 'error');
   }
   $fields = array(
     'name' => 'Check In',
@@ -159,7 +159,7 @@ function library_install() {
       ->execute();
   }
   catch (Exception $e) {
-    drupal_set_message(t('db_insert failed. Message = %message, query= %query', array('%message' => $e->getMessage(), '%query' => $e->query_string)), 'error');
+    drupal_set_message(st('db_insert failed. Message = %message, query= %query', array('%message' => $e->getMessage(), '%query' => $e->query_string)), 'error');
   }
   // Notify of changes
   drupal_set_message(st('Library module successfully installed. You can configure library settings at admin/config/workflow/library. To start creating library items, edit one or more content types to be included in the library.'));
@@ -170,12 +170,12 @@ function library_install() {
  */
 function library_uninstall() {
   foreach (node_type_get_types() as $type => $info) {
-    variable_del('library_' . $type .'_due_dates');
+    variable_del('library_' . $type . '_due_dates');
     variable_del('library_' . $type);
     foreach (library_actions() as $key => $value) {
-      variable_del('library_days_for_' . $type .'_' . library_clean_action_name($value['name']));
-      variable_del('library_hours_for_' . $type .'_' . library_clean_action_name($value['name']));
-      variable_del('library_period_for_' . $type .'_' . library_clean_action_name($value['name']));
+      variable_del('library_days_for_' . $type . '_' . library_clean_action_name($value['name']));
+      variable_del('library_hours_for_' . $type . '_' . library_clean_action_name($value['name']));
+      variable_del('library_period_for_' . $type . '_' . library_clean_action_name($value['name']));
     }
   }
 

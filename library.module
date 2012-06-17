@@ -1,7 +1,7 @@
 <?php
 
 if (module_exists('trigger')) {
-  include_once(drupal_get_path('module', 'library') .'/library.actions.inc');
+  include_once(drupal_get_path('module', 'library') . '/library.actions.inc');
 }
 
 /**
@@ -283,7 +283,7 @@ function _library_item_form($delta, $item = array()) {
  * Implementation of hook_init().
  */
 function library_init() {
-    drupal_add_css(drupal_get_path('module', 'library') .'/library.css');
+    drupal_add_css(drupal_get_path('module', 'library') . '/library.css');
 }
 
 /**
@@ -426,7 +426,7 @@ function library_menu() {
     'file' => 'library.admin.inc',
   );
   $items['library-items/autocomplete'] = array(
-    'title' => t('Library Autocomplete'),
+    'title' => 'Library Autocomplete',
     'page callback' => 'library_autocomplete',
     'access arguments' => array('access content'),
     'type' => MENU_CALLBACK,
@@ -901,7 +901,7 @@ function library_get_action_links($item) {
       }
     }
     else {
-      $action_links[] = l($action['name'], 'library-items/transaction/' . $aid .'/' . $item['id']);
+      $action_links[] = l($action['name'], 'library-items/transaction/' . $aid . '/' . $item['id']);
     }
   }
   return $action_links;
@@ -1006,7 +1006,7 @@ function library_autocomplete_input($item = NULL) {
   }
   else {
     $my_default_value = ($item ? $item->title : '');
-    $my_default_value .=  ($item ? ' [id:' . $item->id .']' : '');
+    $my_default_value .=  ($item ? ' [id:' . $item->id . ']' : '');
     $form['item_id'] = array(
       '#type' => 'textfield',
       '#title' => t('Library Item'),
@@ -1227,7 +1227,7 @@ function library_patron_autocomplete($string) {
   }
 
   foreach ($result as $patron) {
-        $matches[$patron->name .' [uid:' . $patron->uid .']'] = check_plain($patron->name);
+        $matches[$patron->name . ' [uid:' . $patron->uid . ']'] = check_plain($patron->name);
   }
 
   print drupal_to_js($matches);

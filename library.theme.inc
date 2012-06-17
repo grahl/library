@@ -61,7 +61,7 @@ function theme_library_items($items) {
         $temp_array[] = library_get_status_text($item);
       }
       $temp_array[] = $item['notes'];
-      $temp_array[] = implode(" | ", library_get_action_links($item)) .' ';
+      $temp_array[] = implode(" | ", library_get_action_links($item)) . ' ';
       $rows[] = $temp_array;
     }
   }
