@@ -318,8 +318,7 @@ function library_load($item_id) {
     $select->addField('n', 'status');
     $select->condition('l.id', $item_id);
     $select->range(0, 1);
-    $item = $select->execute()->fetchAll();
-
+    $item = $select->execute()->fetchObject();
     if ($item->in_circulation == LIBRARY_CIRCULATION && $item->library_status == LIBRARY_ITEM_UNAVAILABLE) {
       $last = library_get_last_transaction_by_item($item, LIBRARY_ACTION_TYPE_UNAVAILABLE);
       if ($last) {
@@ -594,7 +593,7 @@ function library_node_update($node) {
     $items = $node->library_items;
     if ($items) {
       foreach ($items as $key => $item) {
-        if ($item['delete'] == 1) {
+        if (isset($item['delete']) && $item['delete'] == 1) {
           $nid = db_delete('library_transactions')
             ->condition('item_id', $item['id'])
             ->execute();
@@ -606,9 +605,9 @@ function library_node_update($node) {
         else {
           $nid = db_update('library')
             ->fields(array(
-              'barcode' => check_plain($item->barcode . ''),
-              'in_circulation' => $item->in_circulation,
-              'notes' => check_plain($item->notes . ''),
+              'barcode' => check_plain($item['barcode'] . ''),
+              'in_circulation' => $item['in_circulation'],
+              'notes' => check_plain($item['notes'] . ''),
             ))
             ->condition('id', $item['id'])
             ->execute();
@@ -853,12 +852,13 @@ function library_actions($aids = array(), $display_all = TRUE) {
 }
 
 function library_get_action($aid) {
-  if (!empty($aid)) {
-    if (is_numeric($aid)) {
-      $action = db_query('SELECT * FROM {library_actions} WHERE aid = :aid', array(':aid' => $aid));
-      if ($action) {
-        return $action;
-      }
+  if (!empty($aid) && is_numeric($aid)) {
+    $action = db_query('SELECT * FROM {library_actions} WHERE aid = :aid', array(':aid' => $aid))->fetchObject();
+    if ($action) {
+      return $action;
+    } 
+    else {
+      return FALSE;
     }
   }
   return FALSE;
@@ -1227,17 +1227,19 @@ function library_patron_autocomplete($string) {
     }
   }
   if (empty($result)) {
-    $select = db_select('users')
-      ->fields(array('uid', 'name'))
+    $select = db_select('users','u')
+      ->fields('u',array('uid', 'name'))
       ->condition('status', 1)
       ->condition('name', '%' . db_like(check_plain($string . '')) . '%', 'LIKE')
       ->orderBy('name')
       ->range(0, 10);
-    $result = $select->execute()->fetchAll();
+    $result = $select->execute()->fetchAllAssoc('uid');
   }
 
   foreach ($result as $patron) {
-        $matches[$patron->name . ' [uid:' . $patron->uid . ']'] = check_plain($patron->name);
+    if (isset($patron->name) && isset($patron->uid)) {
+      $matches[$patron->name . ' [uid:' . $patron->uid . ']'] = check_plain($patron->name);
+    }
   }
 
   print drupal_json_encode($matches);
