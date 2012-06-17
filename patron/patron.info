@@ -1,6 +1,0 @@
-name 		= "Patron"
-description 	= "DEPRECATED. Do not install."
-package 	= Library
-core 		= "6.x"
-
-
