@@ -533,7 +533,7 @@ function library_node_validate($node, $form) {
     if ($items) {
       //Check that each barcode is unique
       foreach ($items as $key => $item) {
-        $row_number = db_query("SELECT id FROM {library} WHERE barcode <> '' AND barcode = :barcode", array(':barcode' => check_plain($item['barcode'] . '')))->rowCount();
+        $result = db_query("SELECT id FROM {library} WHERE barcode <> '' AND barcode = :barcode", array(':barcode' => check_plain($item['barcode'] . '')))->rowCount();
         if ((empty($item['id']) && $result > 0) || (!empty($item['id']) && $result > 1)) {
           form_set_error('library_items][' . $key . '][barcode', t('The barcode %barcode already exists. Please enter a different barcode.', array('%barcode' => $item['barcode'])));
         }
