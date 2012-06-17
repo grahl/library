@@ -347,7 +347,7 @@ function library_menu() {
   );
   $items['user/%user/library/history'] = array(
     'title' => 'History',
-    'page callback' => 'library_history_user',
+    'page callback' => 'library_history_singleuser',
     'page arguments' => array(1),
     'access callback' => 'library_may_view_history',
     'access arguments' => array(1),

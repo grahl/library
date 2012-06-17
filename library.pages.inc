@@ -389,7 +389,7 @@ function library_history($node) {
 /**
  * Menu callback; show the transaction history of a single user.
  */
-function library_history_user($patron) { 
+function library_history_singleuser($patron) { 
   $duedate_enabled = library_duedates_enabled($node->type);  
 
   $header = array(t('Date'), t('Item'), t('Transaction'), t('Notes'));
