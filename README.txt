@@ -20,8 +20,8 @@ Drupal 7.x
 
 Installation:
 =============
-Copy the entire library module directory to your module directory and enable the library module. 
-After installing the library module, the site administrator needs to enable library functionality on at least one content type.  To add library functionality to a content type, modify the content type settings at admin/structure/types/manage/<type>.  Select 'Yes' for Library Item under Workflow settings.  
+Copy the entire library module directory to your module directory and enable the library module.
+After installing the library module, the site administrator needs to enable library functionality on at least one content type.  To add library functionality to a content type, modify the content type settings at admin/structure/types/manage/<type>.  Select 'Yes' for Library Item under Workflow settings.
 
 
 Library Settings:
@@ -34,10 +34,10 @@ Library module settings may be configured at admin/config/workflow/library.  No 
 #Enable due date functionality
 #Add/rename library actions
 
-The library module comes with two default library actions: 'Check In' and 'Check Out'.  You may rename these and/or create new library actions at admin/settings/library/actions.  
+The library module comes with two default library actions: 'Check In' and 'Check Out'.  You may rename these and/or create new library actions at admin/settings/library/actions.
 Each library action has it's own permission, so access control can be very fine-grained.
 
-Every library action creates an individual trigger if the Trigger module is enabled.  Site administrators may assign further actions to occur with a specific library action (e.g send an email) by assigning them at admin/structure/trigger/library.  Currently, only the library module provided actions are compatible with these triggers. 
+Every library action creates an individual trigger if the Trigger module is enabled.  Site administrators may assign further actions to occur with a specific library action (e.g send an email) by assigning them at admin/structure/trigger/library.  Currently, only the library module provided actions are compatible with these triggers.
 
 
 Functionality Removed from Drupal 6:
@@ -46,4 +46,4 @@ In the interests of maintaining this module, functionality has been reduced/simp
 All CCK-dependent functionality has been removed. This means you may not select certain CCK fields to add to the library items list. Consider using a view instead.
 No "unique title check" functionality.  If you would like this functionality, please look at the Unique Field module http://drupal.org/project/unique_field
 No library-specific search.  The search API changed in Drupal 7, and the added functionality of a module-specific search is not that great since limiting a search to specific content types is something that can be done in another module or by using the views module with an exposed search field.
-No upgrade from Patron module included, so please make sure to upgrade to the latest Drupal 6 version of library before upgrading to Drupal 7. 
+No upgrade from Patron module included, so please make sure to upgrade to the latest Drupal 6 version of library before upgrading to Drupal 7.

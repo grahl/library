@@ -43,7 +43,7 @@ function library_admin_settings() {
   $when_reference = array();
   foreach (library_actions() as $aid => $action) {
     switch ($action['status_change']) {
-      case LIBRARY_ACTION_NO_CHANGE: 
+      case LIBRARY_ACTION_NO_CHANGE:
         $when_available[$aid] = $action['name'];
         $when_unavailable[$aid] = $action['name'];
         $when_reference[$aid] = $action['name'];
@@ -133,7 +133,7 @@ function library_admin_settings() {
     '#size' => 20,
     '#maxlength' => 20,
   );
-  
+
   if (module_exists('profile')) {
     $form['library_profile'] = array(
       '#type' => 'fieldset',
@@ -164,26 +164,26 @@ function library_admin_settings_overdue() {
     foreach (library_actions() as $aid => $action) {
       if ($action['status_change'] == LIBRARY_ACTION_TYPE_UNAVAILABLE) {
         $clean = library_clean_action_name($action['name']);
-        $input_name = 'library_period_for_'. $type .'_'. $clean;
+        $input_name = 'library_period_for_' . $type .'_' . $clean;
         $form[$input_name] = array(
           '#type' => 'fieldset',
-          '#title' => t($type .' '. $action['name'] .' Period'),
+          '#title' => t($type .' ' . $action['name'] .' Period'),
           '#description' => t('The maximum time a patron may %action a %type . Days and hours are combined into one value. Enter a whole number greater than 0 in days or hours if you want to have duedates for this item type with this action.', array('%type' => $type, '%action' => $action['name'])),
           '#attributes' => array('class' => 'check-out-period-fieldset'),
         );
-        $input_name_days = 'library_days_for_'. $type .'_'. $clean;
+        $input_name_days = 'library_days_for_' . $type .'_' . $clean;
         $form[$input_name][$input_name_days] = array(
           '#type' => 'textfield',
           '#title' => t('Days'),
-          '#default_value' => variable_get(''. $input_name_days, 0),
+          '#default_value' => variable_get('' . $input_name_days, 0),
           '#size' => 3,
           '#maxlength' => 3,
         );
-        $input_name_hours = 'library_hours_for_'. $type .'_'. $clean;
+        $input_name_hours = 'library_hours_for_' . $type .'_' . $clean;
         $form[$input_name][$input_name_hours] = array(
           '#type' => 'textfield',
           '#title' => t('Hours'),
-          '#default_value' => variable_get(''. $input_name_hours, 0),
+          '#default_value' => variable_get('' . $input_name_hours, 0),
           '#size' => 3,
           '#maxlength' => 3,
         );
@@ -215,7 +215,7 @@ function library_admin_settings_overdue() {
     '#default_value' => _library_mail_text('notify_overdue_body'),
     '#rows' => 15,
   );
-  
+
   return system_settings_form($form);
 }
 
@@ -225,8 +225,8 @@ function library_admin_settings_overdue_validate($form, &$form_state) {
     foreach (library_actions() as $aid => $action) {
       if ($action['status_change'] == LIBRARY_ACTION_TYPE_UNAVAILABLE) {
         $clean = library_clean_action_name($action['name']);
-        $input_name_days = 'library_days_for_'. $type .'_'. $clean;
-        $input_name_hours = 'library_hours_for_'. $type .'_'. $clean;
+        $input_name_days = 'library_days_for_' . $type .'_' . $clean;
+        $input_name_hours = 'library_hours_for_' . $type .'_' . $clean;
         if (!is_numeric($form_state['values'][$input_name_days])) {
           form_set_error($input_name_days, t('Days must be a number.'));
         }
@@ -239,10 +239,10 @@ function library_admin_settings_overdue_validate($form, &$form_state) {
         if ($total > 0) {
           $duedates_enabled = 1;
         }
-        variable_set('library_period_for_'. $type .'_'. $clean, $total);
+        variable_set('library_period_for_' . $type . '_' . $clean, $total);
       }
     }
-    variable_set('library_'. $type .'_due_dates', $duedates_enabled);
+    variable_set('library_' . $type . '_due_dates', $duedates_enabled);
   }
 }
 
@@ -261,12 +261,12 @@ function library_admin_action() {
     $show_delete = TRUE;
     if ($action && ($action->status_change > 0)) {
       //Make sure the library always has at least one check in and one check out action
-      $row_number = db_query("SELECT aid FROM {library_actions} WHERE aid <> :aid AND status_change = :change", array(':aid' => $action->aid, ':change' => $action->status_change))->rowCount();	     
+      $row_number = db_query("SELECT aid FROM {library_actions} WHERE aid <> :aid AND status_change = :change", array(':aid' => $action->aid, ':change' => $action->status_change))->rowCount();
       if ($row_number == 0) {
         $show_delete = FALSE;
       }
     }
-  
+
     $form['name'] = array(
       '#type' => 'textfield',
       '#title' => t('Action name'),
@@ -330,13 +330,13 @@ function library_admin_action() {
 function library_admin_action_validate($form, &$form_state) {
   if ($form_state['values']['name']) {
     if ($form_state['values']['op'] == t('Save action')) {
-      $row_number = db_query("SELECT aid FROM {library_actions} WHERE aid <> :aid AND name = :name", array(':aid' => $form_state['values']['aid'], ':name' => $form_state['values']['name']))->rowCount();	     
+      $row_number = db_query("SELECT aid FROM {library_actions} WHERE aid <> :aid AND name = :name", array(':aid' => $form_state['values']['aid'], ':name' => $form_state['values']['name']))->rowCount();
       if ($row_number > 0) {
         form_set_error('name', t('The action name %name already exists. Please choose another action name.', array('%name' => $form_state['values']['name'])));
       }
     }
     elseif ($form_state['values']['op'] == t('Add action')) {
-      $row_number = db_query("SELECT aid FROM {library_actions} WHERE name = :name", array(':name' => $form_state['values']['name']))->rowCount();	     
+      $row_number = db_query("SELECT aid FROM {library_actions} WHERE name = :name", array(':name' => $form_state['values']['name']))->rowCount();
       if ($row_number > 0) {
         form_set_error('name', t('The action name %name already exists. Please choose another action name.', array('%name' => $form_state['values']['name'])));
       }
@@ -360,18 +360,18 @@ function library_admin_action_submit($form, &$form_state) {
   	  ->fields(array(
   	    'name' => check_plain($form_state['values']['name']),
   	    'status_change' => $form_state['values']['status_change'],
-  	  )) 
+  	  ))
       ->condition('aid', $form_state['values']['aid'])
-      ->execute(); 
+      ->execute();
     drupal_set_message(t('The action has been renamed.'));
   }
   elseif ($form_state['values']['op'] == t('Delete action')) {
     db_delete('library_actions')
       ->condition('aid', $form_state['values']['aid'])
-      ->execute(); 
+      ->execute();
     db_delete('library_transactions')
       ->condition('action_aid', $form_state['values']['aid'])
-      ->execute(); 
+      ->execute();
     $available_display = variable_get('library_links_display_available', array());
     $unavailable_display = variable_get('library_links_display_unavailable', array());
     $reference_display = variable_get('library_links_display_reference', array());
@@ -397,8 +397,8 @@ function library_admin_action_submit($form, &$form_state) {
   	  ->fields(array(
   	    'name' => check_plain($form_state['values']['name']),
   	    'status_change' => $form_state['values']['status_change'],
-  	  )) 
-      ->execute(); 
+  	  ))
+      ->execute();
     drupal_set_message(t('The action has been added.'));
   }
   $form_state['redirect'] = 'admin/config/workflow/library/actions';
@@ -415,14 +415,14 @@ function library_autocomplete($string) {
       ->join('node', 'n', 'n.nid = l.nid')
       ->fields('l', array('id', 'barcode'))
       ->fields('n', array('title'))
-      ->condition('n.status', 1) 
+      ->condition('n.status', 1)
       ->condition('l.barcode', '', '<>')
       ->condition('l.barcode', db_like(check_plain($string)) . '%', 'LIKE')
-      ->orderBy('l.barcode') 
-      ->range(0, 10); 
+      ->orderBy('l.barcode')
+      ->range(0, 10);
     $results = $select->execute()->fetchAll();
     foreach ($results as $item) {
-      $matches[$item->barcode .' [title:'. $item->title .'] [id:'. $item->id .']'] = check_plain($item->barcode);
+      $matches[$item->barcode .' [title:' . $item->title . '] [id:' . $item->id . ']'] = check_plain($item->barcode);
     }
   }
   else {
@@ -430,14 +430,14 @@ function library_autocomplete($string) {
       ->join('node', 'n', 'n.nid = l.nid')
       ->fields('l', array('id'))
       ->fields('n', array('title'))
-      ->condition('n.status', 1) 
+      ->condition('n.status', 1)
       ->condition('n.title', db_like(check_plain($string)) . '%', 'LIKE')
       ->orderBy('n.title')
-      ->distinct() 
-      ->range(0, 10); 
+      ->distinct()
+      ->range(0, 10);
     $results = $select->execute()->fetchAll();
     foreach ($results as $item) {
-      $my_key = $item->title .' [id:'. $item->id .']';
+      $my_key = $item->title .' [id:' . $item->id . ']';
       $matches[$my_key] = check_plain($my_key);
     }
   }

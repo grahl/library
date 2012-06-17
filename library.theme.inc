@@ -27,7 +27,7 @@ function theme_library_admin_new_action($form) {
       default:
         $status_text = 'No Change';
     }
-    $rows[] = array($action['name'], $status_text, l(t('edit action'), 'admin/config/workflow/library/actions/edit/'. $aid));
+    $rows[] = array($action['name'], $status_text, l(t('edit action'), 'admin/config/workflow/library/actions/edit/' . $aid));
   }
   $rows[] = array(drupal_render($form['name']), drupal_render($form['status_change']), drupal_render($form['submit']));
 
@@ -40,7 +40,7 @@ function theme_library_admin_new_action($form) {
 function theme_library_items($items) {
   $barcodes = (variable_get('library_item_barcodes', LIBRARY_NO_BARCODES) == LIBRARY_BARCODES);
   $display_status = (variable_get(library_status_display, 0) == 1);
-  
+
   $header = array(t('Copy'));
   if ($barcodes) {
     $header[] = t('Barcode');

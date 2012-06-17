@@ -11,9 +11,9 @@
 function library_trigger_info() {
   $triggers = array();
   foreach (library_actions() as $aid => $action) {
-    $triggers['library_after_'. library_clean_action_name($action['name'])] = array('label' => t('After a '. $action['name']));
+    $triggers['library_after_' . library_clean_action_name($action['name'])] = array('label' => t('After a ' . $action['name']));
   }
-  
+
   return array(
     'library' => $triggers
   );
@@ -25,7 +25,7 @@ function library_trigger_info() {
 function library_action_info() {
   $triggers = array();
   foreach (library_actions() as $aid => $action) {
-    $triggers[] = 'library_after_'. library_clean_action_name($action['name']);
+    $triggers[] = 'library_after_' . library_clean_action_name($action['name']);
   }
 
   return array(
@@ -53,19 +53,19 @@ function library_renew_action(&$object, $context = array()) {
   $patron = $context['patron'];
   $item = $context['item'];
   $item_obj = library_load($item['id']);
-  if ($item_obj && !empty($item_obj->last_transaction_id) && !empty($item_obj->last_transaction_name) && !empty($item_obj->last_patron_uid) && !empty($item_obj->last_due_date) && 
+  if ($item_obj && !empty($item_obj->last_transaction_id) && !empty($item_obj->last_transaction_name) && !empty($item_obj->last_patron_uid) && !empty($item_obj->last_due_date) &&
       $item_obj->last_patron_uid == $patron['uid'] && $item_obj->in_circulation == LIBRARY_CIRCULATION && $item_obj->library_status == LIBRARY_ITEM_UNAVAILABLE) {
 
     $type = $item_obj->type;
     $clean = library_clean_action_name($item_obj->last_transaction_name);
-    $period = variable_get('library_period_for_'. $type .'_'. $clean, 0);
+    $period = variable_get('library_period_for_' . $type .'_' . $clean, 0);
     if ($period > 0) {
       $duedate = library_get_due_date(REQUEST_TIME, $clean, $type);
       if ($duedate) {
         db_update('library_transactions')
           ->fields(array('duedate' => $duedate))
           ->condition('tid', $item_obj->last_transaction_id)
-          ->execute(); 
+          ->execute();
         watchdog('library', '%name renewed %item [ID: %item_id ].', array('%name' => check_plain($patron['name']), '%item' => check_plain($item['title']), '%item_id' => $item['id']));
       }
     }
@@ -89,13 +89,13 @@ function library_mail($key, &$message, $params) {
         '%site_name' => variable_get('site_name', 'Drupal'),
         '%patron_name' => $context['patron']['name'],
         '%patron_email' => $context['patron']['mail'],
-        '%patron_uid' => $context['patron']['uid'], 
-        '%node_url' => url('node/'. $context['item']['nid'], array('absolute' => TRUE)),  
+        '%patron_uid' => $context['patron']['uid'],
+        '%node_url' => url('node/' . $context['item']['nid'], array('absolute' => TRUE)),
         '%node_type' => $context['item']['node_type'],
         '%title' => $context['item']['title'],
-        '%item_id' => $context['item']['id'],    
-        '%barcode' => $context['item']['barcode'], 
-        '%transaction_name' => $context['transaction']['action_name'], 
+        '%item_id' => $context['item']['id'],
+        '%barcode' => $context['item']['barcode'],
+        '%transaction_name' => $context['transaction']['action_name'],
         '%notes' => $context['transaction']['notes'],
       );
       $subject = strtr($context['subject'], $variables);
@@ -195,7 +195,7 @@ function library_send_email_action(&$object, $context) {
   if ($recipient == '%patron_mail') {
       $recipient = $context['patron']['mail'];
   }
-  
+
   $params = array('context' => $context);
 
   if (drupal_mail('library', 'action_send_email', $recipient, $language, $params)) {
@@ -209,7 +209,7 @@ function library_send_email_action(&$object, $context) {
 function library_mail_tokens($params, $language) {
   $items = '';
   foreach ($params['items'] as $id => $values) {
-    $items .= $values['item_name'] .' (Due '. format_date($values['due_date'], 'short') .') '; 
+    $items .= $values['item_name'] .' (Due ' . format_date($values['due_date'], 'short') . ') ';
   }
   $tokens = array(
     '!patronname' => $params['patron']['patron_name'],
@@ -223,7 +223,7 @@ function library_mail_tokens($params, $language) {
  */
 function library_email_form_submit($form, &$form_state) {
   if ($form_state['values']['op'] == t('Send E-mail')) {
-    
+
     drupal_set_message(t('The email has been sent.'));
   }
   $form_state['redirect'] = 'library-items';
