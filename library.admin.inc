@@ -441,7 +441,7 @@ function library_autocomplete($string) {
       $matches[$my_key] = check_plain($my_key);
     }
   }
-  print drupal_to_js($matches);
+  print drupal_json_encode($matches);
   exit();
 }
 

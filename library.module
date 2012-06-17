@@ -1230,6 +1230,6 @@ function library_patron_autocomplete($string) {
         $matches[$patron->name . ' [uid:' . $patron->uid . ']'] = check_plain($patron->name);
   }
 
-  print drupal_to_js($matches);
+  print drupal_json_encode($matches);
   exit();
 }
