@@ -170,7 +170,12 @@ function library_form_alter(&$form, &$form_state, $form_id) {
       */
       // Add the current choices to the form.
       for ($i = 0; $i < $item_count; $i++) {
-        $form['library_items_fieldset']['library_items'][$i] = _library_item_form($i, $node->library_items[$i]);
+        if (isset($node->library_items[$i])) {
+          $form['library_items_fieldset']['library_items'][$i] = _library_item_form($i, $node->library_items[$i]);
+        }
+        else {
+          $form['library_items_fieldset']['library_items'][$i] = _library_item_form($i, array());
+        }
       }
 
       $form['library_items_fieldset']['add_library_item'] = array(
@@ -216,7 +221,12 @@ function library_node_form_submit($form, &$form_state) {
  * entire form is rebuilt during the page reload.
  */
 function library_add_more_add_one($form, &$form_state) {
-  $form_state['library_item_count']++;
+  if (isset($form_state['library_item_count'])) {
+    $form_state['library_item_count']++;
+  }
+  else {
+    $form_state['library_item_count'] = 2;
+  }
   $form_state['rebuild'] = TRUE;
 }
 
