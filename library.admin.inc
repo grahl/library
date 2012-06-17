@@ -435,7 +435,7 @@ function library_autocomplete($string) {
       ->orderBy('n.title')
       ->distinct()
       ->range(0, 10);
-    $results = $select->execute()->fetchAll();
+    $results = $select->execute()->fetchAllAssoc('nid');
     foreach ($results as $item) {
       $my_key = $item->title . ' [id:' . $item->id . ']';
       $matches[$my_key] = check_plain($my_key);
