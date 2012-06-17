@@ -1,7 +1,7 @@
-name 		= "Library"
-description 	= "Include content types in a library. Core Trigger and Views are recommended."
-package 	= Library
-core 		= "7.x"
+name = Library
+description = Include content types in a library. Core Trigger and Views are recommended.
+package = Library
+core = 7.x
 
 files[] = library.install
 files[] = library.module
@@ -14,3 +14,5 @@ files[] = includes/views/library.views.inc
 files[] = includes/views/handlers/library_handler_field_library_status.inc
 files[] = includes/views/handlers/library_handler_field_quantity.inc
 files[] = includes/views/handlers/library_handler_filter_library_status.inc
+
+configure = admin/config/workflow/library
