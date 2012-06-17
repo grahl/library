@@ -54,14 +54,15 @@ function theme_library_items($items) {
   if ($items) {
     foreach ($items as $key => $item) {
       $temp_array = array(($key + 1));
+      #TODO: fix the indexes here
       if ($barcodes) {
-        $temp_array[] = $item['barcode'];
+        $temp_array[] = $item[0]['barcode'];
       }
       if ($display_status) {
-        $temp_array[] = library_get_status_text($item);
+        $temp_array[] = library_get_status_text($item[0]);
       }
-      $temp_array[] = $item['notes'];
-      $temp_array[] = implode(" | ", library_get_action_links($item)) . ' ';
+      $temp_array[] = $item[0]['notes'];
+      $temp_array[] = implode(" | ", library_get_action_links($item[0])) . ' ';
       $rows[] = $temp_array;
     }
   }
