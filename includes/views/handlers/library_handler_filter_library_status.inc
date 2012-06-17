@@ -2,7 +2,7 @@
 
 /**
  * @file
- * Filter handler for library item status 
+ * Filter handler for library item status
  *
  */
 

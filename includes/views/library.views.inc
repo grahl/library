@@ -36,7 +36,7 @@ function library_views_handlers() {
  */
 function library_views_data() {
   $data = array();
-  
+
   // Basic table information.
 
   // Define the base group of this table. Fields that don't
@@ -62,7 +62,7 @@ function library_views_data() {
       'label' => t('Reference Only'),
     ),
   );
-  
+
   $data['library']['library_status'] = array(
     'title' => t('Item Status'), // The item it appears as on the UI,
     'help' => t('Whether a library item is available or unavailable. Note that this requires an additional query per row.'), // The help that appears on the UI,
@@ -76,7 +76,7 @@ function library_views_data() {
       'label' => t('Item Status'),
     ),
   );
-  
+
   $data['library']['quantity'] = array(
     'field' => array(
       'title' => t('Quantity'),

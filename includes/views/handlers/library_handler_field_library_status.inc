@@ -2,7 +2,7 @@
 
 /**
  * @file
- * Field handler for library item status 
+ * Field handler for library item status
  *
  */
 
