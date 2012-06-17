@@ -144,7 +144,7 @@ function library_form_alter(&$form, &$form_state, $form_id) {
       $form['#cache'] = TRUE;
       $form['#tree'] = TRUE;
 
-      if(!isset($node->library_items)) {
+      if (!isset($node->library_items)) {
         $node->library_items[0] = array();
       }
 
