@@ -556,7 +556,7 @@ function library_node_insert($node) {
     $items = $node->library_items;
     if ($items) {
       foreach ($items as $key => $item) {
-        if ($item['delete'] <> 1) {
+        if (!isset($item['delete']) || (isset($item['delete']) && $item['delete'] <> 1) ) {
           // Notice that we are ignoring any revision information using $node->nid
           $nid = db_insert('library')
             ->fields(array(
