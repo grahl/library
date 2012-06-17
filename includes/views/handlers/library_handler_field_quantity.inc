@@ -1,6 +1,12 @@
 <?php
 
 /**
+ * @file
+ * Field handler for library item quantity
+ *
+ */
+
+/**
  * Display the library quantity
  */
 class library_handler_field_quantity extends views_handler_field {

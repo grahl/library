@@ -1,6 +1,13 @@
 <?php
 
 /**
+ * @file
+ * Field handler for library item status 
+ *
+ */
+
+
+/**
  * Display a node's status in the library as a whole
  */
 class library_handler_field_library_status extends views_handler_field {
