@@ -16,6 +16,7 @@
  */
 function theme_library_admin_new_action($form) {
   $header = array(t('Name'), t('Item Status'), t('Edit'));
+  $output = array();
   foreach (library_actions() as $aid => $action) {
     switch ($action['status_change']) {
       case LIBRARY_ACTION_TYPE_UNAVAILABLE:
@@ -30,8 +31,7 @@ function theme_library_admin_new_action($form) {
     $rows[] = array($action['name'], $status_text, l(t('edit action'), 'admin/config/workflow/library/actions/edit/' . $aid));
   }
   $rows[] = array(drupal_render($form['name']), drupal_render($form['status_change']), drupal_render($form['submit']));
-
-  $output = drupal_render($form);
+  
   $output .= theme('table', array('header' => $header, 'rows' => $rows));
 
   return $output;
