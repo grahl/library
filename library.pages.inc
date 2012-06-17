@@ -62,14 +62,14 @@ function library_transaction_form($form, $form_state, $aid, $item = NULL) {
     $form['item_display'] = array(
       '#type' => 'item',
       '#title' => t('Item'),
-      '#value' => $item->title,
+      '#markup' => $item->title,
     );
   }
   else {
     $form['item_id'] = library_autocomplete_input($item);
   }
 
-  if ($patron) {
+  if (isset($patron)) {
     $form['patron_uid'] = array(
       '#type' => 'value',
       '#value' => $patron->uid,
@@ -80,7 +80,7 @@ function library_transaction_form($form, $form_state, $aid, $item = NULL) {
     );
     $form['patron_display'] = array(
       '#type' => 'item',
-      '#value' => $patron->name,
+      '#markup' => $patron->name,
       '#title' => t('Patron'),
     );
     if ($librarian && $action->status_change == LIBRARY_ACTION_NO_CHANGE) {
@@ -108,7 +108,7 @@ function library_transaction_form($form, $form_state, $aid, $item = NULL) {
     $form['patron_uid'] = array(
       '#type' => 'textfield',
       '#title' => t('Patron'),
-      '#default_value' => ($patron ? $patron->name . ' [uid:' . $patron->uid . ']' : ''),
+      '#default_value' => (isset($patron) ? $patron->name . ' [uid:' . $patron->uid . ']' : ''),
       '#autocomplete_path' => 'library-items/patrons/autocomplete',
       '#required' => TRUE
     );
@@ -210,10 +210,10 @@ function library_transaction_form_validate($form, &$form_state) {
       if ($item->in_circulation == LIBRARY_REFERENCE_ONLY && $action->status_change <> LIBRARY_ACTION_NO_CHANGE) {
         form_set_error('action_aid', t('This item is not in circulation.'));
       }
-      elseif ($item->library_status == LIBRARY_ITEM_AVAILABLE && $action->status_change == LIBRARY_ITEM_TYPE_AVAILABLE) {
+      elseif ($item->library_status == LIBRARY_ITEM_AVAILABLE && $action->status_change == LIBRARY_ACTION_TYPE_AVAILABLE) {
         form_set_error('action_aid', t('This item is already available.'));
       }
-      elseif ($item->library_status == LIBRARY_ITEM_UNAVAILABLE &&  $action->status_change == LIBRARY_ITEM_TYPE_UNAVAILABLE) {
+      elseif ($item->library_status == LIBRARY_ITEM_UNAVAILABLE &&  $action->status_change == LIBRARY_ACTION_TYPE_UNAVAILABLE) {
         form_set_error('action_aid', t('This item is not currently available.'));
       }
       elseif ($item->library_status == LIBRARY_ITEM_UNAVAILABLE && $patron->uid <> $item->last_patron_uid) {
