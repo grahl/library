@@ -51,19 +51,19 @@ function theme_library_items($items) {
   $header[] = t('Notes');
   $header[] = t('Actions');
   $rows = array();
-  if ($items) {
-    foreach ($items as $key => $item) {
-      $temp_array = array(($key + 1));
-      #TODO: fix the indexes here
+  $itemlist = $items['items'];
+  if ($itemlist) {
+    foreach ($itemlist as $key => $item) {
+      $temp_array = array($key + 1);
       if ($barcodes) {
-        $temp_array[] = $item[0]['barcode'];
+        $temp_array[] = $item['barcode'];
       }
       if ($display_status) {
-        $temp_array[] = library_get_status_text($item[0]);
+        $temp_array[] = library_get_status_text($item);
       }
-      $temp_array[] = $item[0]['notes'];
-      $temp_array[] = implode(" | ", library_get_action_links($item[0])) . ' ';
-      $rows[] = $temp_array;
+      $temp_array[] = $item['notes'];
+      $temp_array[] = implode(" | ", library_get_action_links($item)) . ' ';
+      $rows[$key] = $temp_array;
     }
   }
   return theme('table', array('header' => $header, 'rows' => $rows));
