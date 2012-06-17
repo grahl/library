@@ -462,7 +462,7 @@ function library_notify_overdue() {
         watchdog('library', 'Overdue notice sent to %email', array('%email' => $params['patron']['patron_email']));
         $num_emails++;
       }
-      drupal_set_message(t($num_emails .' email(s) sent successfully.'));
+      drupal_set_message(t('@number email(s) sent successfully.',array('@number' => $num_emails)));
       watchdog('library', '%number overdue email notifications sent successfully.', array('%number' => $num_emails));
     }
   }
