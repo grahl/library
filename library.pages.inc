@@ -399,7 +399,7 @@ function library_history_singleuser($patron) {
   $header[] = t('Actions');
   $rows = array();
 
-  $transactions = library_get_transactions_by_user($patron);
+  $transactions = library_get_transactions_by_singleuser($patron);
 
   if (!empty($transactions)) {
     $last_item = '';
