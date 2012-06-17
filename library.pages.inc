@@ -5,7 +5,7 @@
  * Functions for generating page displays related to the library module
  */
 
-function library_transaction_form(&$form_state, $aid, $item = NULL) {
+function library_transaction_form($form, $form_state, $aid, $item = NULL) {
   $patron_uid = arg(4);
   global $user;
   $librarian = user_access('access user profiles', $user) && user_access('administer transactions', $user);
@@ -19,10 +19,10 @@ function library_transaction_form(&$form_state, $aid, $item = NULL) {
   elseif ($librarian == FALSE) {
     $patron = $user;
   }
-
   if ($aid) {
     $action = library_get_action($aid);
-    if ($action->name) {
+
+    if ($action && $action->name) {
       drupal_set_title($action->name);
     }
     else {
